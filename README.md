@@ -6,7 +6,7 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-**Modern Spark 4 distribution fitting library with efficient parallel processing**
+**Modern Spark distribution fitting library with efficient parallel processing**
 
 Automatically fit ~100 scipy.stats distributions to your data using Apache Spark's distributed computing power, with
 optimized Pandas UDFs.
