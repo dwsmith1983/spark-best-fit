@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["spark", "pyspark", "distribution", "fitting", "statistics", "scipy"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
@@ -26,13 +26,13 @@ classifiers = [
 ]
 
 dependencies = [
-    "pyspark>=4.0.0",
-    "pyarrow>=17.0.0",
-    "pandas>=2.2.0",
-    "numpy>=2.0.0",
-    "scipy>=1.14.0",
-    "matplotlib>=3.9.0",
-    "dataconf>=3.3.0",
+    "pyspark>=4.0.0,<5.0.0",
+    "pyarrow>=17.0.0,<23.0.0",
+    "pandas>=2.2.0,<3.0.0",
+    "numpy>=2.0.0,<3.0.0",
+    "scipy>=1.14.0,<2.0.0",
+    "matplotlib>=3.9.0,<4.0.0",
+    "dataconf>=3.3.0,<4.0.0",
 ]
 
 [project.urls]
@@ -51,7 +51,7 @@ dev = [
     "black>=24.10.0",
     "isort>=5.13.0",
     "mypy>=1.13.0",
-    "pre-commit>=4.0.0",
+    "pre-commit>=4.5.0",
     "scipy-stubs>=1.14.0",
     "pandas-stubs>=2.2.0",
 ]
