@@ -52,20 +52,21 @@ class DistributionFitter(SparkSessionWrapper):
 
     def __init__(
         self,
-        spark: SparkSession,
+        spark: Optional[SparkSession] = None,
         config: Optional[FitConfig] = None,
         distribution_registry: Optional[DistributionRegistry] = None,
     ):
         """Initialize DistributionFitter.
 
         Args:
+            spark: Spark session. If None, gets or creates one.
             config: Fitting configuration (uses defaults if None)
             distribution_registry: Custom distribution registry (uses default if None)
         """
         super().__init__(spark)
         self.config = config or FitConfig()
         self.registry = distribution_registry or DistributionRegistry()
-        self.histogram_computer = HistogramComputer(spark)
+        self.histogram_computer = HistogramComputer(self.spark)
 
         # Enable Arrow optimization for Pandas UDFs
         self.spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")

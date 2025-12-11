@@ -25,8 +25,12 @@ class HistogramComputer(SparkSessionWrapper):
         >>> # y_hist and x_hist are numpy arrays (~100 values total)
     """
 
-    def __init__(self, spark: SparkSession):
-        """Initialize histogram computer."""
+    def __init__(self, spark: Optional[SparkSession] = None):
+        """Initialize histogram computer.
+
+        Args:
+            spark: Spark session. If None, gets or creates one.
+        """
         super().__init__(spark)
 
     def compute_histogram(

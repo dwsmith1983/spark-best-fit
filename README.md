@@ -84,7 +84,7 @@ config = FitConfig(
 )
 
 fitter = DistributionFitter(config=config)
-results = fitter.fit(df=df, column="value")
+results = fitter.fit(df, column="value")
 ```
 
 ### Load Configuration from File
@@ -210,12 +210,12 @@ make setup
 
 ```bash
 make help              # Show all available commands
-make format            # Format code with black and isort
-make lint              # Lint with ruff
 make test              # Run tests
 make test-cov          # Run tests with coverage
+make pre-commit        # Run pre-commit hooks (lint, format, type check)
+make check             # Run pre-commit + tests
 make clean             # Clean build artifacts
-make pre-commit        # Run pre-commit hooks
+make build             # Build distribution packages
 ```
 
 ### Pre-commit Hooks
@@ -250,25 +250,6 @@ make test-cov
 # Run specific test
 pytest tests/test_core.py -v
 ```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests and linting (`make check`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
-
-## Migration from Old Implementation
-
-### Breaking Changes
-
-- Complete API redesign (cleaner, more Pythonic)
-- Configuration via dataclasses instead of constructor args
-- Results are `FitResults` object, not raw DataFrame
-- No HDFS dependency for config files
 
 ## License
 
