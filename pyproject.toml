@@ -36,6 +36,7 @@ dependencies = [
 ]
 
 [project.urls]
+Documentation = "https://spark-dist-fit.readthedocs.io/en/latest/"
 Homepage = "https://github.com/dwsmith1983/spark-best-fit"
 Repository = "https://github.com/dwsmith1983/spark-best-fit"
 Issues = "https://github.com/dwsmith1983/spark-best-fit/issues"
