@@ -1,0 +1,107 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "spark-dist-fit"
+version = "2.0.0"
+description = "Modern Spark 4 distribution fitting library with efficient parallel processing"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Dustin Smith", email = "dustin.william.smith@gmail.com"},
+]
+keywords = ["spark", "pyspark", "distribution", "fitting", "statistics", "scipy"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+# Core package dependencies (minimal for production use)
+dependencies = [
+    "pyspark>=4.0.0",
+    "pyarrow>=17.0.0",
+    "pandas>=2.2.0",
+    "numpy>=2.0.0",
+    "scipy>=1.14.0",
+    "matplotlib>=3.9.0",
+    "dataconf>=3.3.0",  # HOCON/YAML/JSON config loading into dataclasses
+]
+
+[project.optional-dependencies]
+# Development dependencies
+dev = [
+    "pytest>=8.3.0",
+    "pytest-cov>=6.0.0",
+    "pytest-spark>=0.6.0",
+    "pytest-xdist>=3.5.0",
+    "ruff>=0.8.0",
+    "black>=24.10.0",
+    "isort>=5.13.0",
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+    "scipy-stubs>=1.14.0",
+    "pandas-stubs>=2.2.0",
+]
+
+# Test dependencies (subset of dev for CI)
+test = [
+    "pytest>=8.3.0",
+    "pytest-cov>=6.0.0",
+    "pytest-spark>=0.6.0",
+]
+
+# Documentation dependencies
+docs = [
+    "sphinx>=8.0.0",
+    "sphinx-rtd-theme>=3.0.0",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/config",
+    "/examples",
+    "/README.md",
+]
+
+[tool.hatch.build.targets.wheel.hooks.vcs]
+version-file = "src/spark_dist_fit/_version.py"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/spark_dist_fit/_version.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+# Don't add src to path - use installed package
+pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["src/spark_dist_fit"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
+[tool.hatch.envs.default]
+python = "3.11"
+
+[[tool.hatch.envs.test.matrix]]
+python = ["3.11", "3.12"]
