@@ -157,8 +157,7 @@ class TestFitResults:
         """Test FitResults initialization."""
         results = FitResults(sample_results_df)
 
-        assert results._spark_df == sample_results_df
-        assert results._pandas_df is None
+        assert results._df == sample_results_df
 
     def test_to_pandas(self, sample_results_df):
         """Test converting to pandas DataFrame."""
@@ -169,17 +168,11 @@ class TestFitResults:
         assert "distribution" in df_pandas.columns
         assert "sse" in df_pandas.columns
 
-        # Should be cached
-        df_pandas2 = results.to_pandas()
-        assert df_pandas is not df_pandas2  # Returns copy
-        assert results._pandas_df is not None  # But caches internally
-
-    def test_to_spark(self, sample_results_df):
-        """Test getting Spark DataFrame."""
+    def test_df_property(self, sample_results_df):
+        """Test getting Spark DataFrame via df property."""
         results = FitResults(sample_results_df)
-        df_spark = results.to_spark()
 
-        assert df_spark == sample_results_df
+        assert results.df == sample_results_df
 
     def test_best_by_sse(self, sample_results_df):
         """Test getting best distributions by SSE."""

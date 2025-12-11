@@ -21,9 +21,7 @@ class TestFitConfig:
         assert config.enable_sampling is True
         assert config.sample_fraction is None
         assert config.max_sample_size == 1_000_000
-        assert config.adaptive_strategy is True
-        assert config.local_threshold == 100_000
-        assert config.spark_threshold == 10_000_000
+        assert config.sample_threshold == 10_000_000
         assert config.num_partitions is None
         assert config.random_seed == 42
 
@@ -262,10 +260,9 @@ class TestFitConfigEdgeCases:
 
     def test_all_sampling_disabled(self):
         """Test config with sampling completely disabled."""
-        config = FitConfig(enable_sampling=False, adaptive_strategy=False)
+        config = FitConfig(enable_sampling=False)
 
         assert config.enable_sampling is False
-        assert config.adaptive_strategy is False
 
     def test_from_string_with_all_fields(self):
         """Test loading FitConfig with all fields from string."""
@@ -276,9 +273,7 @@ class TestFitConfigEdgeCases:
         enable_sampling = false
         sample_fraction = 0.5
         max_sample_size = 500000
-        adaptive_strategy = false
-        local_threshold = 50000
-        spark_threshold = 5000000
+        sample_threshold = 5000000
         num_partitions = 20
         random_seed = 123
         """
@@ -291,8 +286,6 @@ class TestFitConfigEdgeCases:
         assert config.enable_sampling is False
         assert config.sample_fraction == 0.5
         assert config.max_sample_size == 500000
-        assert config.adaptive_strategy is False
-        assert config.local_threshold == 50000
-        assert config.spark_threshold == 5000000
+        assert config.sample_threshold == 5000000
         assert config.num_partitions == 20
         assert config.random_seed == 123

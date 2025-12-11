@@ -10,13 +10,13 @@ class TestHistogramComputer:
 
     def test_initialization(self, spark_session):
         """Test histogram computer initialization."""
-        computer = HistogramComputer(spark_session)
+        computer = HistogramComputer()
 
         assert computer.spark == spark_session
 
     def test_compute_histogram_basic(self, spark_session, small_dataset):
         """Test basic histogram computation."""
-        computer = HistogramComputer(spark_session)
+        computer = HistogramComputer()
         y_hist, x_hist = computer.compute_histogram(small_dataset, "value", bins=50)
 
         # Should return arrays of correct size
@@ -33,7 +33,7 @@ class TestHistogramComputer:
 
     def test_compute_histogram_custom_bins(self, spark_session, small_dataset):
         """Test histogram with custom number of bins."""
-        computer = HistogramComputer(spark_session)
+        computer = HistogramComputer()
 
         for n_bins in [10, 25, 100]:
             y_hist, x_hist = computer.compute_histogram(small_dataset, "value", bins=n_bins)
@@ -43,7 +43,7 @@ class TestHistogramComputer:
 
     def test_compute_histogram_rice_rule(self, spark_session, small_dataset):
         """Test histogram with Rice rule for bin calculation."""
-        computer = HistogramComputer(spark_session)
+        computer = HistogramComputer()
         row_count = small_dataset.count()
 
         y_hist, x_hist = computer.compute_histogram(
@@ -58,7 +58,7 @@ class TestHistogramComputer:
 
     def test_compute_histogram_constant_values(self, spark_session, constant_dataset):
         """Test histogram with constant values (edge case)."""
-        computer = HistogramComputer(spark_session)
+        computer = HistogramComputer()
         y_hist, x_hist = computer.compute_histogram(constant_dataset, "value", bins=50)
 
         # Should handle min == max case
@@ -71,7 +71,7 @@ class TestHistogramComputer:
 
     def test_compute_histogram_positive_data(self, spark_session, positive_dataset):
         """Test histogram with only positive values."""
-        computer = HistogramComputer(spark_session)
+        computer = HistogramComputer()
         y_hist, x_hist = computer.compute_histogram(positive_dataset, "value", bins=50)
 
         # All bin centers should be positive
@@ -83,7 +83,7 @@ class TestHistogramComputer:
 
     def test_compute_histogram_bin_edges_array(self, spark_session, small_dataset):
         """Test histogram with custom bin edges as array."""
-        computer = HistogramComputer(spark_session)
+        computer = HistogramComputer()
         custom_bins = np.array([0, 20, 40, 60, 80, 100])
 
         y_hist, x_hist = computer.compute_histogram(small_dataset, "value", bins=custom_bins)
@@ -92,18 +92,9 @@ class TestHistogramComputer:
         assert len(y_hist) == len(custom_bins) - 1
         assert len(x_hist) == len(custom_bins) - 1
 
-    def test_get_approx_count(self, spark_session, small_dataset):
-        """Test approximate count calculation."""
-        computer = HistogramComputer(spark_session)
-        approx_count = computer._get_approx_count(small_dataset)
-
-        # Should be close to actual count
-        actual_count = small_dataset.count()
-        assert approx_count == actual_count  # For small data, should be exact
-
     def test_compute_histogram_distributed_no_collect(self, spark_session, small_dataset):
         """Test that histogram stays distributed (doesn't collect raw data)."""
-        computer = HistogramComputer(spark_session)
+        computer = HistogramComputer()
 
         # This should NOT collect raw data, only aggregated histogram
         bin_edges = np.linspace(0, 100, 51)
@@ -118,7 +109,7 @@ class TestHistogramComputer:
 
     def test_compute_statistics(self, spark_session, normal_data, small_dataset):
         """Test computing basic statistics."""
-        computer = HistogramComputer(spark_session)
+        computer = HistogramComputer()
         stats = computer.compute_statistics(small_dataset, "value")
 
         # Should have all statistics
@@ -139,7 +130,7 @@ class TestHistogramComputer:
 
     def test_compute_statistics_types(self, spark_session, small_dataset):
         """Test that statistics are returned as floats."""
-        computer = HistogramComputer(spark_session)
+        computer = HistogramComputer()
         stats = computer.compute_statistics(small_dataset, "value")
 
         # All should be floats or None
@@ -149,7 +140,7 @@ class TestHistogramComputer:
 
     def test_histogram_normalization(self, spark_session, small_dataset):
         """Test that histogram is properly normalized to density."""
-        computer = HistogramComputer(spark_session)
+        computer = HistogramComputer()
         y_hist, x_hist = computer.compute_histogram(small_dataset, "value", bins=50)
 
         # Calculate bin widths
@@ -166,7 +157,7 @@ class TestHistogramComputer:
 
     def test_histogram_no_data_loss(self, spark_session, small_dataset):
         """Test that histogram captures all data (no bins with zero when they shouldn't be)."""
-        computer = HistogramComputer(spark_session)
+        computer = HistogramComputer()
         y_hist, x_hist = computer.compute_histogram(small_dataset, "value", bins=50)
 
         # For normal distribution, most bins should have some data
@@ -183,7 +174,7 @@ class TestHistogramComputer:
 
         df = spark_session.createDataFrame([(float(x),) for x in data], ["value"])
 
-        computer = HistogramComputer(spark_session)
+        computer = HistogramComputer()
         y_hist, x_hist = computer.compute_histogram(df, "value", bins=50)
 
         # Should handle outliers gracefully
@@ -196,7 +187,7 @@ class TestHistogramComputer:
 
     def test_medium_dataset_performance(self, spark_session, medium_dataset):
         """Test histogram computation on medium dataset (100K rows)."""
-        computer = HistogramComputer(spark_session)
+        computer = HistogramComputer()
 
         # Should complete without errors
         y_hist, x_hist = computer.compute_histogram(medium_dataset, "value", bins=100)

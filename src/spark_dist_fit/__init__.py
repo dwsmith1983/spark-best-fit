@@ -23,7 +23,7 @@ Example:
 """
 
 from spark_dist_fit._version import __version__
-from spark_dist_fit.config import FitConfig, PlotConfig
+from spark_dist_fit.config import FitConfig, PlotConfig, SparkConfig
 from spark_dist_fit.core import DistributionFitter
 from spark_dist_fit.distributions import DistributionRegistry
 from spark_dist_fit.results import DistributionFitResult, FitResults
@@ -38,6 +38,7 @@ __all__ = [
     # Configuration
     "FitConfig",
     "PlotConfig",
+    "SparkConfig",
     # Results
     "FitResults",
     "DistributionFitResult",

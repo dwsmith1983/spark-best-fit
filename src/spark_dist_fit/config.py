@@ -2,10 +2,83 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from dataconf import load, string
+
+
+@dataclass
+class SparkConfig:
+    """Configuration for Spark session settings.
+
+    These settings are applied to the Spark session when using DistributionFitter.
+
+    Example HOCON config:
+        ```
+        spark {
+            app_name = "spark-dist-fit"
+            arrow_enabled = true
+            adaptive_enabled = true
+            adaptive_coalesce_enabled = true
+        }
+        ```
+
+    Attributes:
+        app_name: Spark application name
+        arrow_enabled: Enable Arrow optimization for Pandas UDFs
+        adaptive_enabled: Enable Adaptive Query Execution
+        adaptive_coalesce_enabled: Enable adaptive partition coalescing
+        extra_config: Additional Spark config key-value pairs
+    """
+
+    app_name: str = "spark-dist-fit"
+    arrow_enabled: bool = True
+    adaptive_enabled: bool = True
+    adaptive_coalesce_enabled: bool = True
+    extra_config: Dict[str, str] = field(default_factory=dict)
+
+    def to_spark_config(self) -> Dict[str, str]:
+        """Convert to Spark config dictionary.
+
+        Returns:
+            Dictionary of Spark config key-value pairs
+        """
+        config = {
+            "spark.sql.execution.arrow.pyspark.enabled": str(self.arrow_enabled).lower(),
+            "spark.sql.adaptive.enabled": str(self.adaptive_enabled).lower(),
+            "spark.sql.adaptive.coalescePartitions.enabled": str(self.adaptive_coalesce_enabled).lower(),
+        }
+        config.update(self.extra_config)
+        return config
+
+    @classmethod
+    def from_file(cls, path: Union[str, Path]) -> "SparkConfig":
+        """Load configuration from HOCON, YAML, or JSON file.
+
+        Args:
+            path: Path to configuration file
+
+        Returns:
+            SparkConfig instance loaded from file
+        """
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Configuration file not found: {path}")
+
+        return load(str(path), cls)
+
+    @classmethod
+    def from_string(cls, content: str) -> "SparkConfig":
+        """Load configuration from HOCON/YAML/JSON string.
+
+        Args:
+            content: Configuration string
+
+        Returns:
+            SparkConfig instance loaded from string
+        """
+        return string(content, cls)
 
 
 @dataclass
@@ -34,12 +107,10 @@ class FitConfig:
         use_rice_rule: Use Rice rule to automatically determine bin count
         support_at_zero: Only fit distributions with support at zero (non-negative)
         excluded_distributions: List of scipy distribution names to exclude from fitting
-        enable_sampling: Enable adaptive sampling for large datasets
+        enable_sampling: Enable sampling for large datasets
         sample_fraction: Fraction of data to sample (None = auto-determine)
         max_sample_size: Maximum number of rows to sample
-        adaptive_strategy: Enable adaptive processing strategy based on data size
-        local_threshold: Row count threshold for local processing
-        spark_threshold: Row count threshold for sampling strategy
+        sample_threshold: Row count above which sampling is applied
         num_partitions: Number of Spark partitions (None = auto-determine)
         random_seed: Random seed for reproducible sampling
     """
@@ -62,9 +133,7 @@ class FitConfig:
     enable_sampling: bool = True
     sample_fraction: Optional[float] = None
     max_sample_size: int = 1_000_000
-    adaptive_strategy: bool = True
-    local_threshold: int = 100_000
-    spark_threshold: int = 10_000_000
+    sample_threshold: int = 10_000_000
     num_partitions: Optional[int] = None
     random_seed: int = 42
 

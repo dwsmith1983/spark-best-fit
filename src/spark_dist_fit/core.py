@@ -7,7 +7,7 @@ import numpy as np
 import pyspark.sql.functions as F
 from pyspark.sql import DataFrame, SparkSession
 
-from spark_dist_fit.config import FitConfig, PlotConfig
+from spark_dist_fit.config import FitConfig, PlotConfig, SparkConfig
 from spark_dist_fit.distributions import DistributionRegistry
 from spark_dist_fit.fitting import create_fitting_udf
 from spark_dist_fit.histogram import HistogramComputer
@@ -54,6 +54,7 @@ class DistributionFitter(SparkSessionWrapper):
         self,
         spark: Optional[SparkSession] = None,
         config: Optional[FitConfig] = None,
+        spark_config: Optional[SparkConfig] = None,
         distribution_registry: Optional[DistributionRegistry] = None,
     ):
         """Initialize DistributionFitter.
@@ -61,18 +62,13 @@ class DistributionFitter(SparkSessionWrapper):
         Args:
             spark: Spark session. If None, gets or creates one.
             config: Fitting configuration (uses defaults if None)
+            spark_config: Spark session configuration (uses defaults if None)
             distribution_registry: Custom distribution registry (uses default if None)
         """
-        super().__init__(spark)
+        super().__init__(spark, spark_config)
         self.config = config or FitConfig()
         self.registry = distribution_registry or DistributionRegistry()
-        self.histogram_computer = HistogramComputer(self.spark)
-
-        # Enable Arrow optimization for Pandas UDFs
-        self.spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
-
-        self.spark.conf.set("spark.sql.adaptive.enabled", "true")
-        self.spark.conf.set("spark.sql.adaptive.coalescePartitions.enabled", "true")
+        self.histogram_computer = HistogramComputer()
 
         # Cache last fit for plotting convenience
         self._last_histogram: Optional[Tuple[np.ndarray, np.ndarray]] = None
@@ -122,12 +118,12 @@ class DistributionFitter(SparkSessionWrapper):
         self._last_column = column
         self._last_data = df
 
-        # Step 1: Determine strategy based on data size
-        strategy, row_count = self._determine_strategy(df, config)
-        logger.info(f"Strategy: {strategy}, approximate rows: {row_count}")
+        # Step 1: Get row count
+        row_count = df.count()
+        logger.info(f"Row count: {row_count}")
 
-        # Step 2: Sample if needed (avoids full scan for very large data)
-        df_sample = self._apply_sampling(df, strategy, config, row_count)
+        # Step 2: Sample if needed (for very large datasets)
+        df_sample = self._apply_sampling(df, config, row_count)
 
         # Step 3: Compute histogram (distributed, NO collect of raw data!)
         logger.info("Computing histogram...")
@@ -185,70 +181,33 @@ class DistributionFitter(SparkSessionWrapper):
         return FitResults(results_df)
 
     @staticmethod
-    def _determine_strategy(df: DataFrame, config: FitConfig) -> Tuple[str, int]:
-        """Determine processing strategy based on data size.
+    def _apply_sampling(df: DataFrame, config: FitConfig, row_count: int) -> DataFrame:
+        """Apply sampling if enabled and data exceeds threshold.
 
         Args:
             df: Spark DataFrame
             config: Fitting configuration
+            row_count: Row count
 
         Returns:
-            Tuple of (strategy, row_count)
+            Sampled or full DataFrame
         """
-        if not config.adaptive_strategy:
-            # Count is cached/fast for many DataFrames
-            return "SPARK_FULL", df.count()
-
-        # Try to get count efficiently
-        try:
-            count = df.count()
-        except (RuntimeError, ValueError):
-            # Fallback: sample-based estimation
-            sample = df.sample(fraction=0.01, seed=config.random_seed).count()
-            count = sample * 100
-
-        # Determine strategy
-        if count < config.local_threshold:
-            strategy = "LOCAL"  # Could use local processing (future optimization)
-        elif count < config.spark_threshold:
-            strategy = "SPARK_FULL"
-        else:
-            strategy = "SPARK_SAMPLED"
-
-        return strategy, count
-
-    @staticmethod
-    def _apply_sampling(df: DataFrame, strategy: str, config: FitConfig, row_count: int) -> DataFrame:
-        """Apply sampling strategy based on data size.
-
-        Args:
-            df: Spark DataFrame
-            strategy: Processing strategy
-            config: Fitting configuration
-            row_count: Approximate row count
-
-        Returns:
-            Sampled (or full) DataFrame
-        """
-        if strategy == "LOCAL" or not config.enable_sampling:
+        if not config.enable_sampling or row_count <= config.sample_threshold:
             return df
 
-        if strategy == "SPARK_SAMPLED":
-            # Calculate sample fraction
-            if config.sample_fraction is not None:
-                fraction = config.sample_fraction
-            else:
-                # Auto-determine: aim for max_sample_size rows
-                fraction = min(config.max_sample_size / row_count, 0.35)
+        # Calculate sample fraction
+        if config.sample_fraction is not None:
+            fraction = config.sample_fraction
+        else:
+            # Auto-determine: aim for max_sample_size rows
+            fraction = min(config.max_sample_size / row_count, 0.35)
 
-            logger.info(
-                "Sampling %.1f%% of data (%d rows)",
-                fraction * 100,
-                int(row_count * fraction),
-            )
-            return df.sample(fraction=fraction, seed=config.random_seed)
-
-        return df
+        logger.info(
+            "Sampling %.1f%% of data (%d rows)",
+            fraction * 100,
+            int(row_count * fraction),
+        )
+        return df.sample(fraction=fraction, seed=config.random_seed)
 
     @staticmethod
     def _create_fitting_sample(df: DataFrame, column: str, config: FitConfig) -> np.ndarray:
@@ -289,17 +248,8 @@ class DistributionFitter(SparkSessionWrapper):
         Returns:
             Optimal partition count
         """
-        try:
-            conf = dict(self.spark.sparkContext.getConf().getAll())
-            cores = int(conf.get("spark.executor.cores", 4))
-            executors = int(conf.get("spark.dynamicAllocation.maxExecutors", 10))
-            total_cores = cores * executors
-
-            # Aim for 2-3 distributions per core
-            return min(num_distributions, total_cores * 2)
-        except (KeyError, ValueError, TypeError):
-            # Fallback
-            return min(num_distributions, 20)
+        total_cores = self.spark.sparkContext.defaultParallelism
+        return min(num_distributions, total_cores * 2)
 
     def plot(
         self,

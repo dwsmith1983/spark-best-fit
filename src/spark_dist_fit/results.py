@@ -149,28 +149,24 @@ class FitResults:
         Args:
             results_df: Spark DataFrame with fit results
         """
-        self._spark_df = results_df
-        self._pandas_df: Optional[pd.DataFrame] = None
+        self._df = results_df
 
     def to_pandas(self) -> pd.DataFrame:
         """Convert results to pandas DataFrame.
 
-        Lazy evaluation - only collects when first called.
-
         Returns:
             Pandas DataFrame with all results
         """
-        if self._pandas_df is None:
-            self._pandas_df = self._spark_df.toPandas()
-        return self._pandas_df.copy()
+        return self._df.toPandas()
 
-    def to_spark(self) -> DataFrame:
+    @property
+    def df(self) -> DataFrame:
         """Get underlying Spark DataFrame.
 
         Returns:
             Spark DataFrame with results
         """
-        return self._spark_df
+        return self._df
 
     def best(self, n: int = 1, metric: str = "sse") -> List[DistributionFitResult]:
         """Get top n distributions by specified metric.
@@ -192,7 +188,7 @@ class FitResults:
         if metric not in valid_metrics:
             raise ValueError(f"metric must be one of {valid_metrics}")
 
-        top_n = self._spark_df.orderBy(metric).limit(n).collect()
+        top_n = self._df.orderBy(metric).limit(n).collect()
 
         return [
             DistributionFitResult(
@@ -227,7 +223,7 @@ class FitResults:
             >>> # Get models with low AIC
             >>> low_aic = results.filter(aic_threshold=1000)
         """
-        filtered = self._spark_df
+        filtered = self._df
 
         if sse_threshold is not None:
             filtered = filtered.filter(F.col("sse") < sse_threshold)
@@ -249,7 +245,7 @@ class FitResults:
                    min_sse  mean_sse  max_sse  count
             0      0.001     0.15      2.34     95
         """
-        summary = self._spark_df.select(
+        summary = self._df.select(
             F.min("sse").alias("min_sse"),
             F.mean("sse").alias("mean_sse"),
             F.max("sse").alias("max_sse"),
@@ -267,7 +263,7 @@ class FitResults:
         Returns:
             Count of distributions
         """
-        return self._spark_df.count()
+        return self._df.count()
 
     def __len__(self) -> int:
         """Get number of fitted distributions."""

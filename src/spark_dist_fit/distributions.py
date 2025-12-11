@@ -39,6 +39,9 @@ class DistributionRegistry:
         "exonpow",  # Slow
     }
 
+    # All scipy continuous distributions
+    ALL_DISTRIBUTIONS = [name for name in dir(st) if isinstance(getattr(st, name), st.rv_continuous)]
+
     def __init__(self, custom_exclusions: Optional[Set[str]] = None):
         """Initialize the distribution registry.
 
@@ -46,25 +49,7 @@ class DistributionRegistry:
             custom_exclusions: Optional set of distribution names to exclude
                              (replaces default exclusions if provided)
         """
-        self._all_distributions = self._discover_scipy_distributions()
         self._excluded = custom_exclusions if custom_exclusions is not None else self.DEFAULT_EXCLUSIONS.copy()
-
-    @staticmethod
-    def _discover_scipy_distributions() -> List[str]:
-        """Discover all continuous distributions from scipy.stats.
-
-        Returns:
-            List of distribution names
-        """
-        return [name for name in dir(st) if isinstance(getattr(st, name), st.rv_continuous)]
-
-    def get_all_distributions(self) -> List[str]:
-        """Get all available scipy continuous distributions (no filtering).
-
-        Returns:
-            List of all distribution names
-        """
-        return sorted(self._all_distributions)
 
     def get_distributions(
         self,
@@ -79,7 +64,7 @@ class DistributionRegistry:
             additional_exclusions: Additional distribution names to exclude
 
         Returns:
-            Sorted list of distribution names meeting the criteria
+            List of distribution names meeting the criteria
 
         Example:
             >>> registry = DistributionRegistry()
@@ -102,13 +87,13 @@ class DistributionRegistry:
             excluded.update(additional_exclusions)
 
         # Filter out excluded distributions
-        distributions = [d for d in self._all_distributions if d not in excluded]
+        distributions = [d for d in self.ALL_DISTRIBUTIONS if d not in excluded]
 
         # Filter by support if requested
         if support_at_zero:
             distributions = [d for d in distributions if self._has_support_at_zero(d)]
 
-        return sorted(distributions)
+        return distributions
 
     @staticmethod
     def _has_support_at_zero(dist_name: str) -> bool:

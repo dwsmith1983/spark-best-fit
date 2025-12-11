@@ -52,14 +52,14 @@ from spark_dist_fit import DistributionFitter
 import numpy as np
 
 # Create Spark session
-spark = SparkSession.builder.appName("DistFit").getOrCreate()
+spark = SparkSession.builder.appName("MyApp").getOrCreate()
 
 # Generate sample data
 data = np.random.normal(loc=50, scale=10, size=100_000)
 df = spark.createDataFrame([(float(x),) for x in data], ["value"])
 
-# Fit distributions
-fitter = DistributionFitter(spark)
+# Fit distributions (uses existing Spark session, applies optimized settings)
+fitter = DistributionFitter()
 results = fitter.fit(df, column="value")
 
 # Get best distribution
@@ -219,10 +219,10 @@ fitter.plot(
 | `use_rice_rule` | bool | True | Auto-calculate bins using Rice rule |
 | `support_at_zero` | bool | False | Only fit non-negative distributions |
 | `excluded_distributions` | list | [...] | Distributions to exclude |
-| `enable_sampling` | bool | True | Enable adaptive sampling |
+| `enable_sampling` | bool | True | Enable sampling for large datasets |
 | `sample_fraction` | float | None | Fraction to sample (None = auto) |
 | `max_sample_size` | int | 1,000,000 | Max rows to sample |
-| `adaptive_strategy` | bool | True | Enable adaptive processing |
+| `sample_threshold` | int | 10,000,000 | Row count above which to sample |
 | `num_partitions` | int | None | Spark partitions (None = auto) |
 | `random_seed` | int | 42 | Random seed |
 

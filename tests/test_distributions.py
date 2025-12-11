@@ -24,19 +24,15 @@ class TestDistributionRegistry:
         assert registry.get_exclusions() == custom
         assert "levy_stable" not in registry.get_exclusions()
 
-    def test_get_all_distributions(self):
-        """Test getting all scipy distributions."""
-        registry = DistributionRegistry()
-        all_dists = registry.get_all_distributions()
+    def test_all_distributions_class_constant(self):
+        """Test ALL_DISTRIBUTIONS class constant contains scipy distributions."""
+        all_dists = DistributionRegistry.ALL_DISTRIBUTIONS
 
         # Should have ~100 distributions
         assert len(all_dists) > 80
         assert "norm" in all_dists
         assert "expon" in all_dists
         assert "gamma" in all_dists
-
-        # Should be sorted
-        assert all_dists == sorted(all_dists)
 
     def test_get_distributions_no_filtering(self):
         """Test getting distributions with default exclusions."""
@@ -51,9 +47,6 @@ class TestDistributionRegistry:
         assert "norm" in dists
         assert "expon" in dists
         assert "gamma" in dists
-
-        # Should be sorted
-        assert dists == sorted(dists)
 
     def test_get_distributions_support_at_zero(self):
         """Test filtering for non-negative distributions."""
@@ -180,18 +173,6 @@ class TestDistributionRegistry:
 
         # Should return False for invalid distribution
         assert registry._has_support_at_zero("invalid_dist_name") is False
-
-    def test_discover_scipy_distributions(self):
-        """Test that discovery finds real scipy distributions."""
-        dists = DistributionRegistry._discover_scipy_distributions()
-
-        # Should find many distributions
-        assert len(dists) > 80
-
-        # Verify they are actually rv_continuous instances
-        for dist_name in dists[:5]:  # Check a few
-            dist = getattr(st, dist_name)
-            assert isinstance(dist, st.rv_continuous)
 
     def test_immutability_of_exclusions(self):
         """Test that get_exclusions returns a copy (immutable)."""

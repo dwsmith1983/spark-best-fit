@@ -43,10 +43,10 @@ for size in data_sizes:
     # Configure for large data
     config = FitConfig(
         bins=50,  # Fewer bins for speed
-        enable_sampling=True,  # Enable adaptive sampling
+        enable_sampling=True,  # Enable sampling for large datasets
         sample_fraction=None,  # Auto-determine
         max_sample_size=1_000_000,  # Limit to 1M for fitting
-        adaptive_strategy=True,
+        sample_threshold=1_000_000,  # Sample when exceeding 1M rows
     )
 
     # Fit distributions

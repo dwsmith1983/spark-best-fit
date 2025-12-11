@@ -5,7 +5,7 @@ from typing import Optional, Tuple, Union
 import numpy as np
 import pyspark.sql.functions as F
 from pyspark.ml.feature import Bucketizer
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import DataFrame
 
 from spark_dist_fit.utils import SparkSessionWrapper
 
@@ -24,14 +24,6 @@ class HistogramComputer(SparkSessionWrapper):
         ... )
         >>> # y_hist and x_hist are numpy arrays (~100 values total)
     """
-
-    def __init__(self, spark: Optional[SparkSession] = None):
-        """Initialize histogram computer.
-
-        Args:
-            spark: Spark session. If None, gets or creates one.
-        """
-        super().__init__(spark)
 
     def compute_histogram(
         self,
@@ -67,7 +59,7 @@ class HistogramComputer(SparkSessionWrapper):
         # Determine number of bins if using Rice rule
         if use_rice_rule:
             if approx_count is None:
-                approx_count = self._get_approx_count(df)
+                approx_count = df.count()
             bins = int(np.ceil(approx_count ** (1 / 3)) * 2)
 
         # Get min and max values (small aggregation, not a full collect)
@@ -115,27 +107,6 @@ class HistogramComputer(SparkSessionWrapper):
             y_density = bin_counts
 
         return y_density, x_centers
-
-    @staticmethod
-    def _get_approx_count(df: DataFrame) -> int:
-        """Get approximate row count efficiently.
-
-        Tries to use Spark's approximate count first, falls back to exact count.
-
-        Args:
-            df: Spark DataFrame
-
-        Returns:
-            Approximate row count
-        """
-        try:
-            # For cached/materialized DataFrames, this is fast
-            return df.count()
-        except (RuntimeError, ValueError):
-            # Fallback: sample-based estimation
-            sample_fraction = 0.01
-            sample_count = df.sample(fraction=sample_fraction).count()
-            return int(sample_count / sample_fraction)
 
     @staticmethod
     def _compute_histogram_distributed(df: DataFrame, column: str, bin_edges: np.ndarray) -> DataFrame:
