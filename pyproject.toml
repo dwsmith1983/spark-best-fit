@@ -35,6 +35,11 @@ dependencies = [
     "dataconf>=3.3.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/dwsmith1983/spark-best-fit"
+Repository = "https://github.com/dwsmith1983/spark-best-fit"
+Issues = "https://github.com/dwsmith1983/spark-best-fit/issues"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.0",
