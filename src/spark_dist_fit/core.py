@@ -124,7 +124,7 @@ class DistributionFitter(SparkSessionWrapper):
 
         # Step 1: Determine strategy based on data size
         strategy, row_count = self._determine_strategy(df, config)
-        logger.info("Strategy: %s, approximate rows: %d", strategy, row_count)
+        logger.info(f"Strategy: {strategy}, approximate rows: {row_count}")
 
         # Step 2: Sample if needed (avoids full scan for very large data)
         df_sample = self._apply_sampling(df, strategy, config, row_count)
@@ -139,7 +139,7 @@ class DistributionFitter(SparkSessionWrapper):
             approx_count=row_count,
         )
         self._last_histogram = (y_hist, x_hist)
-        logger.info("Histogram computed: %d bins", len(x_hist))
+        logger.info(f"Histogram computed: {len(x_hist)} bins")
 
         # Step 4: Broadcast histogram (tiny: ~1KB for 100 bins)
         histogram_bc = self.spark.sparkContext.broadcast((y_hist, x_hist))
@@ -148,7 +148,7 @@ class DistributionFitter(SparkSessionWrapper):
         logger.info("Creating data sample for parameter fitting...")
         data_sample = self._create_fitting_sample(df_sample, column, config)
         data_sample_bc = self.spark.sparkContext.broadcast(data_sample)
-        logger.info("Data sample size: %d", len(data_sample))
+        logger.info(f"Data sample size: {len(data_sample)}")
 
         # Step 6: Get distributions to fit
         distributions = self.registry.get_distributions(
@@ -160,7 +160,7 @@ class DistributionFitter(SparkSessionWrapper):
         if max_distributions is not None and max_distributions > 0:
             distributions = distributions[:max_distributions]
 
-        logger.info("Fitting %d distributions...", len(distributions))
+        logger.info(f"Fitting {len(distributions)} distributions...")
 
         # Step 7: Create DataFrame of distributions
         dist_df = self.spark.createDataFrame([(dist,) for dist in distributions], ["distribution_name"])
@@ -180,7 +180,7 @@ class DistributionFitter(SparkSessionWrapper):
 
         # Trigger computation and show progress
         num_results = results_df.count()
-        logger.info("Successfully fit %d/%d distributions", num_results, len(distributions))
+        logger.info(f"Successfully fit {num_results}/{len(distributions)} distributions")
 
         return FitResults(results_df)
 
@@ -327,7 +327,7 @@ class DistributionFitter(SparkSessionWrapper):
             >>> best = results.best(n=1)[0]
             >>> fitter.plot(best, title='Best Fit Distribution')
         """
-        from .plotting import plot_distribution
+        from spark_dist_fit.plotting import plot_distribution
 
         # Use last fit data if not provided
         if df is None:
