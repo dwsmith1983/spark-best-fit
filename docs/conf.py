@@ -5,11 +5,13 @@ import sys
 
 sys.path.insert(0, os.path.abspath("../src"))
 
+from spark_dist_fit import __version__
+
 project = "spark-dist-fit"
 copyright = "2025, Dustin Smith"
 author = "Dustin Smith"
-version = "2.0.0"
-release = "2.0.0"
+version = __version__
+release = __version__
 
 extensions = [
     "sphinx.ext.autodoc",

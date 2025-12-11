@@ -22,13 +22,13 @@ Example:
     >>> fitter.plot(best, title='Best Fit Distribution')
 """
 
-from .config import FitConfig, PlotConfig
-from .core import DistributionFitter
-from .distributions import DistributionRegistry
-from .results import DistributionFitResult, FitResults
-from .utils import SparkSessionWrapper
+from spark_dist_fit._version import __version__
+from spark_dist_fit.config import FitConfig, PlotConfig
+from spark_dist_fit.core import DistributionFitter
+from spark_dist_fit.distributions import DistributionRegistry
+from spark_dist_fit.results import DistributionFitResult, FitResults
+from spark_dist_fit.utils import SparkSessionWrapper
 
-__version__ = "2.0.0"
 __author__ = "Dustin Smith"
 __email__ = "dustin.william.smith@gmail.com"
 
