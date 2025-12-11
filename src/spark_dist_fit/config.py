@@ -2,14 +2,49 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, TypeVar, Union
 
-import numpy as np
 from dataconf import load, string
 
+T = TypeVar("T", bound="ConfigLoadMixin")
 
-@dataclass
-class SparkConfig:
+
+class ConfigLoadMixin:
+    """Mixin providing file and string loading for config dataclasses."""
+
+    @classmethod
+    def from_file(cls: type[T], path: Union[str, Path]) -> T:
+        """Load configuration from HOCON, YAML, or JSON file.
+
+        Args:
+            path: Path to configuration file
+
+        Returns:
+            Config instance loaded from file
+
+        Raises:
+            FileNotFoundError: If config file doesn't exist
+        """
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Configuration file not found: {path}")
+        return load(str(path), cls)
+
+    @classmethod
+    def from_string(cls: type[T], content: str) -> T:
+        """Load configuration from HOCON/YAML/JSON string.
+
+        Args:
+            content: Configuration string
+
+        Returns:
+            Config instance loaded from string
+        """
+        return string(content, cls)
+
+
+@dataclass(frozen=True)
+class SparkConfig(ConfigLoadMixin):
     """Configuration for Spark session settings.
 
     These settings are applied to the Spark session when using DistributionFitter.
@@ -36,7 +71,7 @@ class SparkConfig:
     arrow_enabled: bool = True
     adaptive_enabled: bool = True
     adaptive_coalesce_enabled: bool = True
-    extra_config: Dict[str, str] = field(default_factory=dict)
+    extra_config: Tuple[Tuple[str, str], ...] = ()  # Immutable tuple of key-value pairs
 
     def to_spark_config(self) -> Dict[str, str]:
         """Convert to Spark config dictionary.
@@ -49,44 +84,29 @@ class SparkConfig:
             "spark.sql.adaptive.enabled": str(self.adaptive_enabled).lower(),
             "spark.sql.adaptive.coalescePartitions.enabled": str(self.adaptive_coalesce_enabled).lower(),
         }
-        config.update(self.extra_config)
+        config.update(dict(self.extra_config))
         return config
 
-    @classmethod
-    def from_file(cls, path: Union[str, Path]) -> "SparkConfig":
-        """Load configuration from HOCON, YAML, or JSON file.
 
-        Args:
-            path: Path to configuration file
-
-        Returns:
-            SparkConfig instance loaded from file
-        """
-        path = Path(path)
-        if not path.exists():
-            raise FileNotFoundError(f"Configuration file not found: {path}")
-
-        return load(str(path), cls)
-
-    @classmethod
-    def from_string(cls, content: str) -> "SparkConfig":
-        """Load configuration from HOCON/YAML/JSON string.
-
-        Args:
-            content: Configuration string
-
-        Returns:
-            SparkConfig instance loaded from string
-        """
-        return string(content, cls)
+# Default excluded distributions (slow or numerically unstable)
+DEFAULT_EXCLUDED_DISTRIBUTIONS: Tuple[str, ...] = (
+    "levy_stable",
+    "kappa4",
+    "ncx2",
+    "ksone",
+    "ncf",
+    "wald",
+    "mielke",
+    "exonpow",
+)
 
 
-@dataclass
-class FitConfig:
+@dataclass(frozen=True)
+class FitConfig(ConfigLoadMixin):
     """Configuration for distribution fitting.
 
     Can be loaded from HOCON, YAML, or JSON files using FitConfig.from_file(),
-    or created programmatically.
+    or created programmatically. This is an immutable (frozen) dataclass.
 
     Example HOCON config:
         ```
@@ -106,7 +126,7 @@ class FitConfig:
         bins: Number of histogram bins or array of bin edges
         use_rice_rule: Use Rice rule to automatically determine bin count
         support_at_zero: Only fit distributions with support at zero (non-negative)
-        excluded_distributions: List of scipy distribution names to exclude from fitting
+        excluded_distributions: Tuple of scipy distribution names to exclude from fitting
         enable_sampling: Enable sampling for large datasets
         sample_fraction: Fraction of data to sample (None = auto-determine)
         max_sample_size: Maximum number of rows to sample
@@ -115,21 +135,10 @@ class FitConfig:
         random_seed: Random seed for reproducible sampling
     """
 
-    bins: Union[int, List[float], np.ndarray] = 50
+    bins: Union[int, Tuple[float, ...]] = 50
     use_rice_rule: bool = True
     support_at_zero: bool = False
-    excluded_distributions: List[str] = field(
-        default_factory=lambda: [
-            "levy_stable",
-            "kappa4",
-            "ncx2",
-            "ksone",
-            "ncf",
-            "wald",
-            "mielke",
-            "exonpow",
-        ]
-    )
+    excluded_distributions: Tuple[str, ...] = DEFAULT_EXCLUDED_DISTRIBUTIONS
     enable_sampling: bool = True
     sample_fraction: Optional[float] = None
     max_sample_size: int = 1_000_000
@@ -137,46 +146,13 @@ class FitConfig:
     num_partitions: Optional[int] = None
     random_seed: int = 42
 
-    @classmethod
-    def from_file(cls, path: Union[str, Path]) -> "FitConfig":
-        """Load configuration from HOCON, YAML, or JSON file.
 
-        Args:
-            path: Path to configuration file
-
-        Returns:
-            FitConfig instance loaded from file
-
-        Example:
-            >>> config = FitConfig.from_file("config.conf")
-            >>> config = FitConfig.from_file("config.yaml")
-            >>> config = FitConfig.from_file("config.json")
-        """
-        path = Path(path)
-        if not path.exists():
-            raise FileNotFoundError(f"Configuration file not found: {path}")
-
-        return load(str(path), cls)
-
-    @classmethod
-    def from_string(cls, content: str) -> "FitConfig":
-        """Load configuration from HOCON/YAML/JSON string.
-
-        Args:
-            content: Configuration string
-
-        Returns:
-            FitConfig instance loaded from string
-        """
-        return string(content, cls)
-
-
-@dataclass
-class PlotConfig:
+@dataclass(frozen=True)
+class PlotConfig(ConfigLoadMixin):
     """Configuration for plotting fitted distributions.
 
     Can be loaded from HOCON, YAML, or JSON files using PlotConfig.from_file(),
-    or created programmatically.
+    or created programmatically. This is an immutable (frozen) dataclass.
 
     Example HOCON config:
         ```
@@ -202,7 +178,7 @@ class PlotConfig:
         grid_alpha: Transparency of grid lines (0-1)
     """
 
-    figsize: Union[Tuple[int, int], List[int]] = (12, 8)
+    figsize: Tuple[int, int] = (12, 8)
     dpi: int = 600
     show_histogram: bool = True
     histogram_alpha: float = 0.5
@@ -213,35 +189,41 @@ class PlotConfig:
     legend_fontsize: int = 10
     grid_alpha: float = 0.3
 
-    def __post_init__(self):
-        """Convert figsize from list to tuple if needed (dataconf parses HOCON lists as Python lists)."""
-        if isinstance(self.figsize, list):
-            self.figsize = tuple(self.figsize)
 
-    @classmethod
-    def from_file(cls, path: Union[str, Path]) -> "PlotConfig":
-        """Load configuration from HOCON, YAML, or JSON file.
+@dataclass(frozen=True)
+class AppConfig(ConfigLoadMixin):
+    """Root configuration containing all config sections.
 
-        Args:
-            path: Path to configuration file
+    This is the recommended way to load configuration from a file that
+    contains spark{}, fit{}, and plot{} sections.
 
-        Returns:
-            PlotConfig instance loaded from file
-        """
-        path = Path(path)
-        if not path.exists():
-            raise FileNotFoundError(f"Configuration file not found: {path}")
+    Example HOCON config:
+        ```
+        spark {
+            app_name = "my-app"
+            arrow_enabled = true
+        }
+        fit {
+            bins = 100
+            support_at_zero = true
+        }
+        plot {
+            figsize = [16, 10]
+            dpi = 300
+        }
+        ```
 
-        return load(str(path), cls)
+    Usage:
+        >>> config = AppConfig.from_file("config/app.conf")
+        >>> fitter = DistributionFitter(config=config.fit, spark_config=config.spark)
+        >>> fitter.plot(result, df, "value", config=config.plot)
 
-    @classmethod
-    def from_string(cls, content: str) -> "PlotConfig":
-        """Load configuration from HOCON/YAML/JSON string.
+    Attributes:
+        spark: Spark session configuration
+        fit: Distribution fitting configuration
+        plot: Plotting configuration
+    """
 
-        Args:
-            content: Configuration string
-
-        Returns:
-            PlotConfig instance loaded from string
-        """
-        return string(content, cls)
+    spark: SparkConfig = field(default_factory=SparkConfig)
+    fit: FitConfig = field(default_factory=FitConfig)
+    plot: PlotConfig = field(default_factory=PlotConfig)

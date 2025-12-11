@@ -1,10 +1,14 @@
 """Visualization utilities for fitted distributions."""
 
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats as st
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+
+from spark_dist_fit.fitting import compute_pdf_range, extract_distribution_params
 
 if TYPE_CHECKING:
     from .config import PlotConfig
@@ -20,7 +24,7 @@ def plot_distribution(
     xlabel: str = "Value",
     ylabel: str = "Density",
     save_path: Optional[str] = None,
-) -> Tuple:
+) -> Tuple[Figure, Axes]:
     """Plot fitted distribution against data histogram.
 
     Creates a matplotlib figure showing the data histogram and the
@@ -56,28 +60,14 @@ def plot_distribution(
     dist = getattr(st, result.distribution)
     params = result.parameters
 
-    # Extract shape, loc, scale
-    arg = params[:-2] if len(params) > 2 else ()
-    loc = params[-2]
-    scale = params[-1]
+    # Extract shape, loc, scale using utility function
+    shape, loc, scale = extract_distribution_params(params)
 
-    # Generate smooth x values for PDF
-    try:
-        start = dist.ppf(0.01, *arg, loc=loc, scale=scale)
-        end = dist.ppf(0.99, *arg, loc=loc, scale=scale)
-    except (ValueError, RuntimeError, FloatingPointError):
-        # Fallback if ppf fails
-        start = x_hist.min()
-        end = x_hist.max()
-
-    # Ensure valid range
-    if not np.isfinite(start):
-        start = x_hist.min()
-    if not np.isfinite(end):
-        end = x_hist.max()
+    # Compute PDF range using utility function
+    start, end = compute_pdf_range(dist, params, x_hist)
 
     x_pdf = np.linspace(start, end, 1000)
-    y_pdf = dist.pdf(x_pdf, *arg, loc=loc, scale=scale)
+    y_pdf = dist.pdf(x_pdf, *shape, loc=loc, scale=scale)
 
     # Create figure
     fig, ax = plt.subplots(figsize=config.figsize)
@@ -145,7 +135,7 @@ def plot_distribution(
 
 
 def plot_comparison(
-    results: list,
+    results: List["DistributionFitResult"],
     y_hist: np.ndarray,
     x_hist: np.ndarray,
     config: "PlotConfig",
@@ -153,7 +143,7 @@ def plot_comparison(
     xlabel: str = "Value",
     ylabel: str = "Density",
     save_path: Optional[str] = None,
-) -> Tuple:
+) -> Tuple[Figure, Axes]:
     """Plot multiple fitted distributions for comparison.
 
     Args:
@@ -203,25 +193,12 @@ def plot_comparison(
         dist = getattr(st, result.distribution)
         params = result.parameters
 
-        arg = params[:-2] if len(params) > 2 else ()
-        loc = params[-2]
-        scale = params[-1]
-
-        # Generate PDF
-        try:
-            start = dist.ppf(0.01, *arg, loc=loc, scale=scale)
-            end = dist.ppf(0.99, *arg, loc=loc, scale=scale)
-        except (ValueError, RuntimeError, FloatingPointError):
-            start = x_hist.min()
-            end = x_hist.max()
-
-        if not np.isfinite(start):
-            start = x_hist.min()
-        if not np.isfinite(end):
-            end = x_hist.max()
+        # Extract parameters and compute range using utility functions
+        shape, loc, scale = extract_distribution_params(params)
+        start, end = compute_pdf_range(dist, params, x_hist)
 
         x_pdf = np.linspace(start, end, 1000)
-        y_pdf = dist.pdf(x_pdf, *arg, loc=loc, scale=scale)
+        y_pdf = dist.pdf(x_pdf, *shape, loc=loc, scale=scale)
 
         # Plot with label
         label = f"{result.distribution} (SSE={result.sse:.4f})"

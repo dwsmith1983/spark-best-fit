@@ -1,13 +1,16 @@
 """Distribution fitting using Pandas UDFs for efficient parallel processing."""
 
 import warnings
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
 import scipy.stats as st
 from pyspark.sql.functions import pandas_udf
 from pyspark.sql.types import ArrayType, FloatType, StringType, StructField, StructType
+
+# Constant for fitting sample size
+FITTING_SAMPLE_SIZE: int = 10_000  # Most scipy distributions fit well with 10k samples
 
 # Define output schema for Pandas UDF
 # Note: Pandas infers all columns as nullable, so we match that here
@@ -198,7 +201,9 @@ def compute_information_criteria(dist: Any, params: Tuple[float, ...], data: np.
         return np.inf, np.inf
 
 
-def create_sample_data(data_full: np.ndarray, sample_size: int = 10_000, random_seed: int = 42) -> np.ndarray:
+def create_sample_data(
+    data_full: np.ndarray, sample_size: int = FITTING_SAMPLE_SIZE, random_seed: int = 42
+) -> np.ndarray:
     """Create a sample of data for distribution fitting.
 
     Most scipy distributions can be fit accurately with ~10k samples,
@@ -218,3 +223,75 @@ def create_sample_data(data_full: np.ndarray, sample_size: int = 10_000, random_
     rng = np.random.RandomState(random_seed)
     indices = rng.choice(len(data_full), size=sample_size, replace=False)
     return data_full[indices]
+
+
+def extract_distribution_params(params: List[float]) -> Tuple[Tuple[float, ...], float, float]:
+    """Extract shape, loc, scale from scipy distribution parameters.
+
+    scipy.stats distributions return parameters as: (shape_params..., loc, scale)
+    This function separates them into their components.
+
+    Args:
+        params: List of distribution parameters from scipy fit
+
+    Returns:
+        Tuple of (shape_params, loc, scale) where shape_params is a tuple
+        that may be empty for 2-parameter distributions like normal.
+
+    Example:
+        >>> # Normal distribution (no shape params)
+        >>> params = [50.0, 10.0]  # loc=50, scale=10
+        >>> shape, loc, scale = extract_distribution_params(params)
+        >>> # shape=(), loc=50.0, scale=10.0
+
+        >>> # Gamma distribution (1 shape param)
+        >>> params = [2.0, 0.0, 5.0]  # a=2, loc=0, scale=5
+        >>> shape, loc, scale = extract_distribution_params(params)
+        >>> # shape=(2.0,), loc=0.0, scale=5.0
+    """
+    if len(params) < 2:
+        raise ValueError(f"Parameters must have at least 2 elements (loc, scale), got {len(params)}")
+
+    shape = tuple(params[:-2]) if len(params) > 2 else ()
+    loc = params[-2]
+    scale = params[-1]
+    return shape, loc, scale
+
+
+def compute_pdf_range(
+    dist: Any,
+    params: List[float],
+    x_hist: np.ndarray,
+    percentile: float = 0.01,
+) -> Tuple[float, float]:
+    """Compute safe range for PDF plotting.
+
+    Uses the distribution's ppf (percent point function) to find a reasonable
+    range that covers most of the distribution's mass, with fallback to
+    histogram bounds if ppf fails.
+
+    Args:
+        dist: scipy.stats distribution object
+        params: Distribution parameters
+        x_hist: Histogram bin centers (used as fallback)
+        percentile: Lower percentile for range (upper = 1 - percentile)
+
+    Returns:
+        Tuple of (start, end) for PDF plotting range
+    """
+    shape, loc, scale = extract_distribution_params(params)
+
+    try:
+        start = dist.ppf(percentile, *shape, loc=loc, scale=scale)
+        end = dist.ppf(1 - percentile, *shape, loc=loc, scale=scale)
+    except (ValueError, RuntimeError, FloatingPointError):
+        start = float(x_hist.min())
+        end = float(x_hist.max())
+
+    # Validate and fallback for non-finite values
+    if not np.isfinite(start):
+        start = float(x_hist.min())
+    if not np.isfinite(end):
+        end = float(x_hist.max())
+
+    return start, end

@@ -67,7 +67,7 @@ best = results.best(n=1)[0]
 print(f"Best: {best.distribution} with SSE={best.sse:.6f}")
 
 # Plot
-fitter.plot(best, title="Best Fit Distribution")
+fitter.plot(best, df, "value", title="Best Fit Distribution")
 ```
 
 ## Advanced Usage
@@ -138,7 +138,8 @@ fitter = DistributionFitter(config=fit_config)
 results = fitter.fit(df, column="value")
 
 # Plot with config
-fitter.plot(results.best(n=1)[0], config=plot_config)
+best = results.best(n=1)[0]
+fitter.plot(best, df, column, config=plot_config)
 ```
 
 HOCON supports includes, substitutions, and environment variables:
@@ -235,6 +236,10 @@ fitter.plot(
 | `show_histogram` | bool | True | Show data histogram |
 | `histogram_alpha` | float | 0.5 | Histogram transparency |
 | `pdf_linewidth` | int | 2 | PDF line width |
+| `title_fontsize` | int | 14 | Title font size |
+| `label_fontsize` | int | 12 | Axis label font size |
+| `legend_fontsize` | int | 10 | Legend font size |
+| `grid_alpha` | float | 0.3 | Grid line transparency |
 | `save_format` | str | "png" | Save format (png/pdf/svg) |
 
 ## Development

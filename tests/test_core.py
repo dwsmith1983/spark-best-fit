@@ -18,8 +18,6 @@ class TestDistributionFitter:
         # Check type by class name (avoids src layout double-import issue)
         assert type(fitter.config).__name__ == "FitConfig"
         assert type(fitter.registry).__name__ == "DistributionRegistry"
-        assert fitter._last_histogram is None
-        assert fitter._last_column is None
 
     def test_initialization_with_custom_config(self, spark_session):
         """Test fitter initialization with custom config."""
@@ -137,8 +135,9 @@ class TestDistributionFitter:
         """Test creating sample for distribution fitting."""
         config = FitConfig()
         fitter = DistributionFitter(spark_session, config=config)
+        row_count = small_dataset.count()
 
-        sample = fitter._create_fitting_sample(small_dataset, "value", config)
+        sample = fitter._create_fitting_sample(small_dataset, "value", config, row_count)
 
         # Should be numpy array
         assert isinstance(sample, np.ndarray)
@@ -180,19 +179,17 @@ class TestDistributionFitter:
         assert count1 == count2
         assert count1 > 0
 
-    def test_fit_stores_last_histogram(self, spark_session, small_dataset):
-        """Test that fitter stores last histogram for plotting."""
+    def test_fit_returns_valid_results(self, spark_session, small_dataset):
+        """Test that fitter returns valid FitResults."""
         fitter = DistributionFitter(spark_session)
-
-        assert fitter._last_histogram is None
 
         results = fitter.fit(small_dataset, column="value", max_distributions=5)
 
-        # Should cache histogram
-        assert fitter._last_histogram is not None
-        y_hist, x_hist = fitter._last_histogram
-        assert len(y_hist) > 0
-        assert len(x_hist) > 0
+        # Should return results with valid data
+        assert results.count() > 0
+        best = results.best(n=1)[0]
+        assert best.distribution is not None
+        assert len(best.parameters) >= 2  # At least loc and scale
 
     def test_fit_filters_failed_fits(self, spark_session, small_dataset):
         """Test that failed fits are filtered out."""
@@ -302,24 +299,23 @@ class TestDistributionFitterPlotting:
         results = fitter.fit(small_dataset, column="value", max_distributions=5)
         best = results.best(n=1)[0]
 
-        # Should not raise error
-        fig, ax = fitter.plot(best)
+        # Should not raise error (df and column are now required)
+        fig, ax = fitter.plot(best, small_dataset, "value")
 
         assert fig is not None
         assert ax is not None
 
-    def test_plot_without_fit_fails(self, spark_session):
-        """Test that plotting without fit raises error."""
+    def test_plot_with_title(self, spark_session, small_dataset):
+        """Test plotting with title."""
         fitter = DistributionFitter(spark_session)
+        results = fitter.fit(small_dataset, column="value", max_distributions=5)
+        best = results.best(n=1)[0]
 
-        # Create a dummy result
-        from spark_dist_fit.results import DistributionFitResult
+        # Should work with explicit data and title
+        fig, ax = fitter.plot(best, small_dataset, "value", title="Test Plot")
 
-        result = DistributionFitResult(distribution="norm", parameters=[0.0, 50.0, 10.0], sse=0.005)
-
-        # Should raise error (no data cached)
-        with pytest.raises(ValueError):
-            fitter.plot(result)
+        assert fig is not None
+        assert ax is not None
 
     def test_plot_with_explicit_data(self, spark_session, small_dataset):
         """Test plotting with explicitly provided data."""
@@ -406,18 +402,6 @@ class TestEdgeCases:
         with pytest.raises(ValueError):
             results = fitter.fit(small_dataset, column="value", max_distributions=0)
 
-    def test_fit_updates_last_data_reference(self, spark_session, small_dataset):
-        """Test that fit updates cached data reference."""
-        fitter = DistributionFitter(spark_session)
-
-        assert fitter._last_data is None
-        assert fitter._last_column is None
-
-        fitter.fit(small_dataset, column="value", max_distributions=3)
-
-        assert fitter._last_data is not None
-        assert fitter._last_column == "value"
-
     def test_fit_with_different_columns(self, spark_session):
         """Test fitting on different column names."""
         np.random.seed(42)
@@ -428,38 +412,39 @@ class TestEdgeCases:
         results = fitter.fit(df, column="custom_column_name", max_distributions=3)
 
         assert results.count() > 0
-        assert fitter._last_column == "custom_column_name"
 
 
 class TestCoreNegativePaths:
     """Tests for negative/error paths in core module."""
 
-    def test_plot_requires_df_and_column(self, spark_session):
-        """Test that plot requires either cached data or explicit df/column."""
+    def test_fit_invalid_column(self, spark_session, small_dataset):
+        """Test that fit raises error for invalid column."""
         fitter = DistributionFitter(spark_session)
 
-        from spark_dist_fit.results import DistributionFitResult
+        with pytest.raises(ValueError, match="not found"):
+            fitter.fit(small_dataset, column="nonexistent_column", max_distributions=3)
 
-        result = DistributionFitResult(distribution="norm", parameters=[50.0, 10.0], sse=0.005)
-
-        # No cached data, no explicit data provided
-        with pytest.raises(ValueError):
-            fitter.plot(result)
-
-    def test_plot_with_only_df_no_column(self, spark_session, small_dataset):
-        """Test that plot with df but no column uses cached column."""
+    def test_fit_non_numeric_column(self, spark_session):
+        """Test that fit raises error for non-numeric column."""
+        df = spark_session.createDataFrame([("a",), ("b",), ("c",)], ["value"])
         fitter = DistributionFitter(spark_session)
 
-        # First fit to cache column
-        results = fitter.fit(small_dataset, column="value", max_distributions=3)
-        best = results.best(n=1)[0]
+        with pytest.raises(TypeError, match="must be numeric"):
+            fitter.fit(df, column="value", max_distributions=3)
 
-        # Should work with explicit df but using cached column
-        fig, ax = fitter.plot(best, df=small_dataset)
-        assert fig is not None
+    def test_fit_empty_dataframe(self, spark_session):
+        """Test that fit raises error for empty DataFrame."""
+        from pyspark.sql.types import DoubleType, StructField, StructType
 
-    def test_plot_recomputes_histogram_when_data_changes(self, spark_session):
-        """Test that plot recomputes histogram when data changes."""
+        schema = StructType([StructField("value", DoubleType(), True)])
+        df = spark_session.createDataFrame([], schema)
+        fitter = DistributionFitter(spark_session)
+
+        with pytest.raises(ValueError, match="empty"):
+            fitter.fit(df, column="value", max_distributions=3)
+
+    def test_plot_with_different_data(self, spark_session):
+        """Test that plot works with different data than fit."""
         np.random.seed(42)
         data1 = np.random.normal(50, 10, 1000)
         data2 = np.random.normal(100, 20, 1000)

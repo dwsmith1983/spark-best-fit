@@ -34,7 +34,7 @@ Basic Usage
    print(f"Best: {best.distribution} with SSE={best.sse:.6f}")
 
    # Plot
-   fitter.plot(best, title="Best Fit Distribution")
+   fitter.plot(best, df, "value", title="Best Fit Distribution")
 
 Custom Configuration
 --------------------
@@ -103,7 +103,7 @@ Load and use the configuration:
 
    # Plot with config
    best = results.best(n=1)[0]
-   fitter.plot(best, config=plot_config)
+   fitter.plot(best, df, column, config=plot_config)
 
 HOCON also supports environment variable substitution:
 

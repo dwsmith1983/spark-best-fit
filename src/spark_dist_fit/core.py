@@ -1,15 +1,16 @@
 """Core distribution fitting engine for Spark."""
 
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import pyspark.sql.functions as F
 from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.types import NumericType
 
 from spark_dist_fit.config import FitConfig, PlotConfig, SparkConfig
 from spark_dist_fit.distributions import DistributionRegistry
-from spark_dist_fit.fitting import create_fitting_udf
+from spark_dist_fit.fitting import FITTING_SAMPLE_SIZE, create_fitting_udf
 from spark_dist_fit.histogram import HistogramComputer
 from spark_dist_fit.results import DistributionFitResult, FitResults
 from spark_dist_fit.utils import SparkSessionWrapper
@@ -66,14 +67,9 @@ class DistributionFitter(SparkSessionWrapper):
             distribution_registry: Custom distribution registry (uses default if None)
         """
         super().__init__(spark, spark_config)
-        self.config = config or FitConfig()
-        self.registry = distribution_registry or DistributionRegistry()
-        self.histogram_computer = HistogramComputer()
-
-        # Cache last fit for plotting convenience
-        self._last_histogram: Optional[Tuple[np.ndarray, np.ndarray]] = None
-        self._last_column: Optional[str] = None
-        self._last_data: Optional[DataFrame] = None
+        self.config: FitConfig = config or FitConfig()
+        self.registry: DistributionRegistry = distribution_registry or DistributionRegistry()
+        self.histogram_computer: HistogramComputer = HistogramComputer()
 
     def fit(
         self,
@@ -85,7 +81,7 @@ class DistributionFitter(SparkSessionWrapper):
         """Fit distributions to data column.
 
         This is the main method that orchestrates the entire fitting process:
-        1. Determine processing strategy (adaptive)
+        1. Validate inputs
         2. Apply sampling if needed
         3. Compute histogram (distributed, no collect!)
         4. Broadcast histogram
@@ -103,6 +99,10 @@ class DistributionFitter(SparkSessionWrapper):
         Returns:
             FitResults object with fitted distributions
 
+        Raises:
+            ValueError: If column not found, DataFrame empty, or max_distributions is 0
+            TypeError: If column is not numeric
+
         Example:
             >>> results = fitter.fit(df, column='value')
             >>> best = results.best(n=1)[0]
@@ -111,15 +111,15 @@ class DistributionFitter(SparkSessionWrapper):
             >>> # For fast testing with only 5 distributions
             >>> results = fitter.fit(df, 'value', max_distributions=5)
         """
-        if max_distributions == 0:
-            raise ValueError("max_distributions cannot be 0")
+        # Input validation
+        self._validate_inputs(df, column, max_distributions)
 
         config = config_override or self.config
-        self._last_column = column
-        self._last_data = df
 
         # Step 1: Get row count
         row_count = df.count()
+        if row_count == 0:
+            raise ValueError("DataFrame is empty")
         logger.info(f"Row count: {row_count}")
 
         # Step 2: Sample if needed (for very large datasets)
@@ -134,7 +134,6 @@ class DistributionFitter(SparkSessionWrapper):
             use_rice_rule=config.use_rice_rule,
             approx_count=row_count,
         )
-        self._last_histogram = (y_hist, x_hist)
         logger.info(f"Histogram computed: {len(x_hist)} bins")
 
         # Step 4: Broadcast histogram (tiny: ~1KB for 100 bins)
@@ -142,14 +141,14 @@ class DistributionFitter(SparkSessionWrapper):
 
         # Step 5: Create small sample for parameter fitting (~10k rows)
         logger.info("Creating data sample for parameter fitting...")
-        data_sample = self._create_fitting_sample(df_sample, column, config)
+        data_sample = self._create_fitting_sample(df_sample, column, config, row_count)
         data_sample_bc = self.spark.sparkContext.broadcast(data_sample)
         logger.info(f"Data sample size: {len(data_sample)}")
 
         # Step 6: Get distributions to fit
         distributions = self.registry.get_distributions(
             support_at_zero=config.support_at_zero,
-            additional_exclusions=config.excluded_distributions,
+            additional_exclusions=list(config.excluded_distributions),
         )
 
         # Limit distributions for testing if specified
@@ -158,27 +157,57 @@ class DistributionFitter(SparkSessionWrapper):
 
         logger.info(f"Fitting {len(distributions)} distributions...")
 
-        # Step 7: Create DataFrame of distributions
-        dist_df = self.spark.createDataFrame([(dist,) for dist in distributions], ["distribution_name"])
+        try:
+            # Step 7: Create DataFrame of distributions
+            dist_df = self.spark.createDataFrame([(dist,) for dist in distributions], ["distribution_name"])
 
-        # Step 8: Determine optimal partitioning
-        num_partitions = config.num_partitions or self._calculate_partitions(len(distributions))
-        dist_df = dist_df.repartition(num_partitions)
+            # Step 8: Determine optimal partitioning
+            num_partitions = config.num_partitions or self._calculate_partitions(len(distributions))
+            dist_df = dist_df.repartition(num_partitions)
 
-        # Step 9: Apply Pandas UDF for fitting
-        fitting_udf = create_fitting_udf(histogram_bc, data_sample_bc)
+            # Step 9: Apply Pandas UDF for fitting
+            fitting_udf = create_fitting_udf(histogram_bc, data_sample_bc)
 
-        results_df = dist_df.select(fitting_udf(F.col("distribution_name")).alias("result")).select("result.*")
+            results_df = dist_df.select(fitting_udf(F.col("distribution_name")).alias("result")).select("result.*")
 
-        # Step 10: Filter out failed fits and cache
-        results_df = results_df.filter(F.col("sse") < float(np.inf))
-        results_df = results_df.cache()
+            # Step 10: Filter out failed fits and cache
+            results_df = results_df.filter(F.col("sse") < float(np.inf))
+            results_df = results_df.cache()
 
-        # Trigger computation and show progress
-        num_results = results_df.count()
-        logger.info(f"Successfully fit {num_results}/{len(distributions)} distributions")
+            # Trigger computation and show progress
+            num_results = results_df.count()
+            logger.info(f"Successfully fit {num_results}/{len(distributions)} distributions")
 
-        return FitResults(results_df)
+            return FitResults(results_df)
+
+        finally:
+            # Clean up broadcast variables to prevent memory leaks
+            histogram_bc.unpersist()
+            data_sample_bc.unpersist()
+
+    @staticmethod
+    def _validate_inputs(df: DataFrame, column: str, max_distributions: Optional[int]) -> None:
+        """Validate inputs to fit method.
+
+        Args:
+            df: Spark DataFrame
+            column: Column name
+            max_distributions: Maximum distributions to fit
+
+        Raises:
+            ValueError: If column not found or max_distributions is 0
+            TypeError: If column is not numeric
+        """
+        if max_distributions == 0:
+            raise ValueError("max_distributions cannot be 0")
+
+        if column not in df.columns:
+            raise ValueError(f"Column '{column}' not found in DataFrame. Available columns: {df.columns}")
+
+        # Check column type
+        col_type = df.schema[column].dataType
+        if not isinstance(col_type, NumericType):
+            raise TypeError(f"Column '{column}' must be numeric, got {col_type}")
 
     @staticmethod
     def _apply_sampling(df: DataFrame, config: FitConfig, row_count: int) -> DataFrame:
@@ -210,7 +239,7 @@ class DistributionFitter(SparkSessionWrapper):
         return df.sample(fraction=fraction, seed=config.random_seed)
 
     @staticmethod
-    def _create_fitting_sample(df: DataFrame, column: str, config: FitConfig) -> np.ndarray:
+    def _create_fitting_sample(df: DataFrame, column: str, config: FitConfig, row_count: int) -> np.ndarray:
         """Create small sample for scipy distribution fitting.
 
         Most scipy distributions can be fit well with ~10k samples.
@@ -220,22 +249,17 @@ class DistributionFitter(SparkSessionWrapper):
             df: Spark DataFrame
             column: Column to sample
             config: Fitting configuration
+            row_count: Total row count (avoids extra count)
 
         Returns:
             Numpy array with sample data
         """
-        sample_size = min(10_000, df.count())
-        fraction = sample_size / df.count()
+        sample_size = min(FITTING_SAMPLE_SIZE, row_count)
+        fraction = min(sample_size / row_count, 1.0)
 
-        # Collect only the small sample
-        sample_data = (
-            df.select(column)
-            .sample(fraction=fraction, seed=config.random_seed)
-            .rdd.map(lambda row: float(row[0]))
-            .collect()
-        )
-
-        return np.array(sample_data)
+        # Collect only the small sample using toPandas (more efficient than RDD)
+        sample_df = df.select(column).sample(fraction=fraction, seed=config.random_seed)
+        return sample_df.toPandas()[column].values
 
     def _calculate_partitions(self, num_distributions: int) -> int:
         """Calculate optimal number of partitions.
@@ -254,8 +278,8 @@ class DistributionFitter(SparkSessionWrapper):
     def plot(
         self,
         result: DistributionFitResult,
-        df: Optional[DataFrame] = None,
-        column: Optional[str] = None,
+        df: DataFrame,
+        column: str,
         config: Optional[PlotConfig] = None,
         title: str = "",
         xlabel: str = "Value",
@@ -265,38 +289,30 @@ class DistributionFitter(SparkSessionWrapper):
 
         Args:
             result: DistributionFitResult to plot
-            df: DataFrame with data (uses last fit data if None)
-            column: Column name (uses last fit column if None)
+            df: DataFrame with data
+            column: Column name
             config: Plot configuration
             title: Plot title
             xlabel: X-axis label
             ylabel: Y-axis label
 
+        Returns:
+            Tuple of (figure, axis) from matplotlib
+
         Example:
             >>> results = fitter.fit(df, 'value')
             >>> best = results.best(n=1)[0]
-            >>> fitter.plot(best, title='Best Fit Distribution')
+            >>> fitter.plot(best, df, 'value', title='Best Fit Distribution')
         """
         from spark_dist_fit.plotting import plot_distribution
 
-        # Use last fit data if not provided
-        if df is None:
-            df = self._last_data
-        if column is None:
-            column = self._last_column
-        if df is None or column is None:
-            raise ValueError("Must provide df and column, or call fit() first")
-
-        # Get histogram (use cached if same data)
-        if self._last_histogram is None or df != self._last_data or column != self._last_column:
-            y_hist, x_hist = self.histogram_computer.compute_histogram(
-                df,
-                column,
-                bins=self.config.bins,
-                use_rice_rule=self.config.use_rice_rule,
-            )
-        else:
-            y_hist, x_hist = self._last_histogram
+        # Compute histogram for plotting
+        y_hist, x_hist = self.histogram_computer.compute_histogram(
+            df,
+            column,
+            bins=self.config.bins,
+            use_rice_rule=self.config.use_rice_rule,
+        )
 
         plot_config = config or PlotConfig()
         return plot_distribution(

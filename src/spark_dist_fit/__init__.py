@@ -11,7 +11,7 @@ Example:
     >>> df = spark.createDataFrame([(float(x),) for x in data], ['value'])
     >>>
     >>> # Fit distributions
-    >>> fitter = DistributionFitter(spark)
+    >>> fitter = DistributionFitter()
     >>> results = fitter.fit(df, column='value')
     >>>
     >>> # Get best distribution
@@ -19,11 +19,18 @@ Example:
     >>> print(f"Best: {best.distribution} with SSE={best.sse:.6f}")
     >>>
     >>> # Plot
-    >>> fitter.plot(best, title='Best Fit Distribution')
+    >>> fitter.plot(best, df, 'value', title='Best Fit Distribution')
 """
 
 from spark_dist_fit._version import __version__
-from spark_dist_fit.config import FitConfig, PlotConfig, SparkConfig
+from spark_dist_fit.config import (
+    DEFAULT_EXCLUDED_DISTRIBUTIONS,
+    AppConfig,
+    ConfigLoadMixin,
+    FitConfig,
+    PlotConfig,
+    SparkConfig,
+)
 from spark_dist_fit.core import DistributionFitter
 from spark_dist_fit.distributions import DistributionRegistry
 from spark_dist_fit.results import DistributionFitResult, FitResults
@@ -36,6 +43,9 @@ __all__ = [
     # Main classes
     "DistributionFitter",
     # Configuration
+    "AppConfig",
+    "ConfigLoadMixin",
+    "DEFAULT_EXCLUDED_DISTRIBUTIONS",
     "FitConfig",
     "PlotConfig",
     "SparkConfig",
