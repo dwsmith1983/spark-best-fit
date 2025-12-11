@@ -1,11 +1,10 @@
 # spark-dist-fit
-  [![CI](https://github.com/dwsmith1983/spark-best-fit/actions/workflows/ci.yml/badge.svg)](https://github.com/dwsmith1983/spark-best-fit/actions/workflows/ci.yml)
-  [![PyPI version](https://badge.fury.io/py/spark-dist-fit.svg)](https://pypi.org/project/spark-dist-fit/)
-  [![Documentation Status](https://readthedocs.org/projects/spark-dist-fit/badge/?version=latest)](https://spark-dist-fit.readthedocs.io/en/latest/)
-  [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-  [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-  [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![CI](https://github.com/dwsmith1983/spark-best-fit/actions/workflows/ci.yml/badge.svg)](https://github.com/dwsmith1983/spark-best-fit/actions/workflows/ci.yml)
+[![PyPI version](https://badge.fury.io/py/spark-dist-fit.svg)](https://pypi.org/project/spark-dist-fit/)
+[![Documentation Status](https://readthedocs.org/projects/spark-dist-fit/badge/?version=latest)](https://spark-dist-fit.readthedocs.io/en/latest/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 **Modern Spark 4 distribution fitting library with efficient parallel processing**
 
