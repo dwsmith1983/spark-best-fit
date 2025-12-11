@@ -87,23 +87,66 @@ fitter = DistributionFitter(config=config)
 results = fitter.fit(df, column="value")
 ```
 
-### Load Configuration from File
+### Load Configuration from HOCON File
 
-```python
-# config.conf (HOCON format)
+The recommended approach for production is to use HOCON configuration files. See `config/example.conf` for a full example.
+
+**config/my_config.conf:**
+```hocon
 fit {
     bins = 100
+    use_rice_rule = false
     support_at_zero = true
-    excluded_distributions = ["levy_stable", "kappa4"]
+
+    excluded_distributions = [
+        "levy_stable"
+        "kappa4"
+        "ncx2"
+    ]
+
     enable_sampling = true
-    sample_fraction = 0.35
+    sample_fraction = 0.3
+    max_sample_size = 1000000
+
+    random_seed = 42
 }
 
-# Load configuration
-from spark_dist_fit import FitConfig
+plot {
+    figsize = [16, 10]
+    dpi = 300
+    histogram_alpha = 0.6
+    pdf_linewidth = 3
+}
+```
 
-config = FitConfig.from_file("config.conf")
-fitter = DistributionFitter(config=config)
+**Load and use:**
+```python
+from spark_dist_fit import DistributionFitter, FitConfig, PlotConfig
+
+# Load configs from HOCON file
+fit_config = FitConfig.from_file("config/my_config.conf")
+plot_config = PlotConfig.from_file("config/my_config.conf")
+
+# Use in fitter
+fitter = DistributionFitter(config=fit_config)
+results = fitter.fit(df, column="value")
+
+# Plot with config
+fitter.plot(results.best(n=1)[0], config=plot_config)
+```
+
+HOCON supports includes, substitutions, and environment variables:
+```hocon
+# Include shared config
+include "base.conf"
+
+fit {
+    # Reference environment variable
+    random_seed = ${?RANDOM_SEED}
+
+    # Override from base
+    bins = 200
+}
 ```
 
 ### Working with Results
