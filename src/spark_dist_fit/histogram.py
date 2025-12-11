@@ -7,7 +7,7 @@ import pyspark.sql.functions as F
 from pyspark.ml.feature import Bucketizer
 from pyspark.sql import DataFrame, SparkSession
 
-from src.spark_dist_fit.utils import SparkSessionWrapper
+from spark_dist_fit.utils import SparkSessionWrapper
 
 
 class HistogramComputer(SparkSessionWrapper):

@@ -1,11 +1,11 @@
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
 name = "spark-dist-fit"
 version = "2.0.0"
-description = "Modern Spark 4 distribution fitting library with efficient parallel processing"
+description = "Modern Spark distribution fitting library with efficient parallel processing"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -25,7 +25,6 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
-# Core package dependencies (minimal for production use)
 dependencies = [
     "pyspark>=4.0.0",
     "pyarrow>=17.0.0",
@@ -33,11 +32,10 @@ dependencies = [
     "numpy>=2.0.0",
     "scipy>=1.14.0",
     "matplotlib>=3.9.0",
-    "dataconf>=3.3.0",  # HOCON/YAML/JSON config loading into dataclasses
+    "dataconf>=3.3.0",
 ]
 
 [project.optional-dependencies]
-# Development dependencies
 dev = [
     "pytest>=8.3.0",
     "pytest-cov>=6.0.0",
@@ -66,19 +64,10 @@ docs = [
 ]
 
 [tool.hatch.build.targets.sdist]
-include = [
-    "/src",
-    "/tests",
-    "/config",
-    "/examples",
-    "/README.md",
-]
+include = ["/src", "/tests", "/config", "/examples", "/README.md"]
 
-[tool.hatch.build.targets.wheel.hooks.vcs]
-version-file = "src/spark_dist_fit/_version.py"
-
-[tool.hatch.build.hooks.vcs]
-version-file = "src/spark_dist_fit/_version.py"
+[tool.hatch.build.targets.wheel]
+packages = ["src/spark_dist_fit"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -86,8 +75,6 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
-# Don't add src to path - use installed package
-pythonpath = ["."]
 
 [tool.coverage.run]
 source = ["src/spark_dist_fit"]
@@ -99,9 +86,3 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "if __name__ == .__main__.:",
 ]
-
-[tool.hatch.envs.default]
-python = "3.11"
-
-[[tool.hatch.envs.test.matrix]]
-python = ["3.11", "3.12"]

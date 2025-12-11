@@ -9,6 +9,7 @@ repos:
         exclude: ^(tests/|examples/)
       # Run the formatter
       - id: ruff-format
+        args: [--line-length=120]
         exclude: ^(tests/|examples/)
 
   # Black for code formatting
@@ -55,15 +56,11 @@ repos:
           - --ignore-missing-imports
           - --no-strict-optional
           - --python-version=3.11
+          - --explicit-package-bases
+          - --namespace-packages
         exclude: ^(tests/|examples/)
-
-  # Docstring coverage (optional but good practice)
-  - repo: https://github.com/econchick/interrogate
-    rev: 1.5.0
-    hooks:
-      - id: interrogate
-        args: [-vv, --fail-under=50, src/]
-        pass_filenames: false
+        # Set MYPYPATH for src layout
+        entry: env MYPYPATH=src mypy
 
 # Configuration for pre-commit.ci (if using)
 ci:

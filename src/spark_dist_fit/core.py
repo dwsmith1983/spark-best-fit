@@ -4,21 +4,21 @@ import logging
 from typing import Optional, Tuple
 
 import numpy as np
-
-logger = logging.getLogger(__name__)
 import pyspark.sql.functions as F
 from pyspark.sql import DataFrame, SparkSession
 
-from src.spark_dist_fit.config import FitConfig, PlotConfig
-from src.spark_dist_fit.distributions import DistributionRegistry
-from src.spark_dist_fit.fitting import create_fitting_udf
-from src.spark_dist_fit.histogram import HistogramComputer
-from src.spark_dist_fit.results import DistributionFitResult, FitResults
-from src.spark_dist_fit.utils import SparkSessionWrapper
+from spark_dist_fit.config import FitConfig, PlotConfig
+from spark_dist_fit.distributions import DistributionRegistry
+from spark_dist_fit.fitting import create_fitting_udf
+from spark_dist_fit.histogram import HistogramComputer
+from spark_dist_fit.results import DistributionFitResult, FitResults
+from spark_dist_fit.utils import SparkSessionWrapper
+
+logger = logging.getLogger(__name__)
 
 
 class DistributionFitter(SparkSessionWrapper):
-    """Modern Spark 4 distribution fitting engine.
+    """Modern Spark distribution fitting engine.
 
     Efficiently fits ~100 scipy.stats distributions to data using Spark's
     parallel processing capabilities. Uses broadcast variables and Pandas UDFs
