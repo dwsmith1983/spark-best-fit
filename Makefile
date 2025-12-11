@@ -1,4 +1,4 @@
-.PHONY: help install install-dev install-test test test-cov clean build publish-test publish pre-commit check setup
+.PHONY: help install install-dev install-test test test-cov clean build publish-test publish pre-commit check setup docs docs-clean
 
 .DEFAULT_GOAL := help
 
@@ -12,7 +12,7 @@ install: ## Install package in editable mode
 	pip install -e .
 
 install-dev: ## Install package with development dependencies
-	pip install -e ".[dev]"
+	pip install -e ".[dev,docs]"
 	pre-commit install
 
 install-test: ## Install package with test dependencies only
@@ -32,10 +32,22 @@ clean: ## Clean build artifacts and cache files
 build: clean ## Build distribution packages
 	python -m build
 
+publish-test: build ## Publish to TestPyPI
+	twine upload --repository testpypi dist/*
+
+publish: build ## Publish to PyPI
+	twine upload dist/*
+
 pre-commit: ## Run pre-commit hooks on all files
 	pre-commit run --all-files
 
 check: pre-commit test ## Run all checks (pre-commit, tests)
+
+docs: ## Build documentation
+	sphinx-build -b html docs docs/_build/html
+
+docs-clean: ## Clean documentation build
+	rm -rf docs/_build
 
 setup: install-dev ## Initial setup for development
 	@echo "Development environment setup complete"
