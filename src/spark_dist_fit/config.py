@@ -139,6 +139,7 @@ class FitConfig(ConfigLoadMixin):
         enable_sampling: Enable sampling for large datasets
         sample_fraction: Fraction of data to sample (None = auto-determine)
         max_sample_size: Maximum number of rows to sample
+        max_sample_fraction: Maximum auto-determined sample fraction (caps auto sampling)
         sample_threshold: Row count above which sampling is applied
         num_partitions: Number of Spark partitions (None = auto-determine)
         random_seed: Random seed for reproducible sampling
@@ -151,6 +152,7 @@ class FitConfig(ConfigLoadMixin):
     enable_sampling: bool = True
     sample_fraction: Optional[float] = None
     max_sample_size: int = 1_000_000
+    max_sample_fraction: float = 0.35
     sample_threshold: int = 10_000_000
     num_partitions: Optional[int] = None
     random_seed: int = 42
@@ -177,6 +179,10 @@ class FitConfig(ConfigLoadMixin):
         # Validate sample_threshold
         if self.sample_threshold <= 0:
             raise ValueError(f"sample_threshold must be positive, got {self.sample_threshold}")
+
+        # Validate max_sample_fraction
+        if not 0.0 < self.max_sample_fraction <= 1.0:
+            raise ValueError(f"max_sample_fraction must be in (0, 1], got {self.max_sample_fraction}")
 
         # Validate num_partitions
         if self.num_partitions is not None and self.num_partitions <= 0:
