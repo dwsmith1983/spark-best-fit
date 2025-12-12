@@ -58,6 +58,8 @@ dev = [
 
 # Test dependencies (subset of dev for CI)
 test = [
+    "pyspark>=3.2.0,<5.0.0",
+    "pyarrow>=17.0.0,<23.0.0",
     "pytest>=8.3.0",
     "pytest-cov>=6.0.0",
     "pytest-spark>=0.6.0",
