@@ -6,6 +6,8 @@ from typing import Dict, Optional, Tuple, TypeVar, Union
 
 from dataconf import load, string
 
+from spark_dist_fit.distributions import DistributionRegistry
+
 T = TypeVar("T", bound="ConfigLoadMixin")
 
 
@@ -88,26 +90,8 @@ class SparkConfig(ConfigLoadMixin):
         return config
 
 
-# Default excluded distributions (slow or numerically unstable)
-DEFAULT_EXCLUDED_DISTRIBUTIONS: Tuple[str, ...] = (
-    "levy_stable",  # Extremely slow - MLE doesn't always converge
-    "kappa4",  # Extremely slow
-    "ncx2",  # Slow - non-central chi-squared
-    "ksone",  # Slow - Kolmogorov-Smirnov one-sided
-    "ncf",  # Slow - non-central F
-    "wald",  # Sometimes numerically unstable
-    "mielke",  # Slow
-    "exonpow",  # Slow - exponential power
-    "studentized_range",  # Very slow - scipy docs recommend approximation
-    "gausshyper",  # Very slow - Gauss hypergeometric
-    "geninvgauss",  # Can hang - generalized inverse Gaussian
-    "genhyperbolic",  # Slow - generalized hyperbolic
-    "kstwo",  # Slow - Kolmogorov-Smirnov two-sided
-    "kstwobign",  # Slow - KS limit distribution
-    "recipinvgauss",  # Can be slow
-    "vonmises",  # Can be slow on fitting
-    "vonmises_line",  # Can be slow on fitting
-)
+# Re-export DEFAULT_EXCLUSIONS as a tuple for backwards compatibility
+DEFAULT_EXCLUDED_DISTRIBUTIONS: Tuple[str, ...] = tuple(DistributionRegistry.DEFAULT_EXCLUSIONS)
 
 
 @dataclass(frozen=True)
@@ -171,6 +155,33 @@ class FitConfig(ConfigLoadMixin):
     num_partitions: Optional[int] = None
     random_seed: int = 42
 
+    def __post_init__(self) -> None:
+        """Validate configuration values."""
+        # Validate bins
+        if isinstance(self.bins, int):
+            if self.bins <= 0:
+                raise ValueError(f"bins must be positive, got {self.bins}")
+        elif isinstance(self.bins, tuple):
+            if len(self.bins) < 2:
+                raise ValueError(f"bins array must have at least 2 edges, got {len(self.bins)}")
+
+        # Validate sample_fraction
+        if self.sample_fraction is not None:
+            if not 0.0 < self.sample_fraction <= 1.0:
+                raise ValueError(f"sample_fraction must be in (0, 1], got {self.sample_fraction}")
+
+        # Validate max_sample_size
+        if self.max_sample_size <= 0:
+            raise ValueError(f"max_sample_size must be positive, got {self.max_sample_size}")
+
+        # Validate sample_threshold
+        if self.sample_threshold <= 0:
+            raise ValueError(f"sample_threshold must be positive, got {self.sample_threshold}")
+
+        # Validate num_partitions
+        if self.num_partitions is not None and self.num_partitions <= 0:
+            raise ValueError(f"num_partitions must be positive, got {self.num_partitions}")
+
 
 @dataclass(frozen=True)
 class PlotConfig(ConfigLoadMixin):
@@ -213,6 +224,41 @@ class PlotConfig(ConfigLoadMixin):
     label_fontsize: int = 12
     legend_fontsize: int = 10
     grid_alpha: float = 0.3
+
+    def __post_init__(self) -> None:
+        """Validate configuration values."""
+        # Validate figsize
+        if len(self.figsize) != 2:
+            raise ValueError(f"figsize must be (width, height), got {self.figsize}")
+        if self.figsize[0] <= 0 or self.figsize[1] <= 0:
+            raise ValueError(f"figsize dimensions must be positive, got {self.figsize}")
+
+        # Validate dpi
+        if self.dpi <= 0:
+            raise ValueError(f"dpi must be positive, got {self.dpi}")
+
+        # Validate alpha values (0-1)
+        if not 0.0 <= self.histogram_alpha <= 1.0:
+            raise ValueError(f"histogram_alpha must be in [0, 1], got {self.histogram_alpha}")
+        if not 0.0 <= self.grid_alpha <= 1.0:
+            raise ValueError(f"grid_alpha must be in [0, 1], got {self.grid_alpha}")
+
+        # Validate linewidth
+        if self.pdf_linewidth <= 0:
+            raise ValueError(f"pdf_linewidth must be positive, got {self.pdf_linewidth}")
+
+        # Validate font sizes
+        if self.title_fontsize <= 0:
+            raise ValueError(f"title_fontsize must be positive, got {self.title_fontsize}")
+        if self.label_fontsize <= 0:
+            raise ValueError(f"label_fontsize must be positive, got {self.label_fontsize}")
+        if self.legend_fontsize <= 0:
+            raise ValueError(f"legend_fontsize must be positive, got {self.legend_fontsize}")
+
+        # Validate save_format
+        valid_formats = ("png", "pdf", "svg", "jpg", "jpeg")
+        if self.save_format.lower() not in valid_formats:
+            raise ValueError(f"save_format must be one of {valid_formats}, got {self.save_format}")
 
 
 @dataclass(frozen=True)
