@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.4.2 (2025-12-12)
+
+### Bug Fixes
+
+- Skip release workflow on chore(release) commits
+  ([#9](https://github.com/dwsmith1983/spark-best-fit/pull/9),
+  [`4fdc97b`](https://github.com/dwsmith1983/spark-best-fit/commit/4fdc97b92faa5aff62694c6eedb9ed196e012a38))
+
+
 ## v1.4.1 (2025-12-12)
 
 ### Bug Fixes
