@@ -62,8 +62,19 @@ class HistogramComputer(SparkSessionWrapper):
                 approx_count = df.count()
             bins = int(np.ceil(approx_count ** (1 / 3)) * 2)
 
+        # Ensure minimum of 2 bins (Bucketizer requires at least 3 splits)
+        if isinstance(bins, int) and bins < 2:
+            bins = 2
+
+        # Filter out null values before computing statistics
+        df_filtered = df.filter(F.col(column).isNotNull())
+
         # Get min and max values (small aggregation, not a full collect)
-        stats = df.agg(F.min(column).alias("min_val"), F.max(column).alias("max_val")).collect()[0]
+        stats = df_filtered.agg(F.min(column).alias("min_val"), F.max(column).alias("max_val")).collect()[0]
+
+        # Handle empty DataFrame or all-null values
+        if stats["min_val"] is None or stats["max_val"] is None:
+            raise ValueError(f"Cannot compute histogram: column '{column}' contains no valid (non-null) values")
 
         min_val, max_val = float(stats["min_val"]), float(stats["max_val"])
 
@@ -81,7 +92,8 @@ class HistogramComputer(SparkSessionWrapper):
             bin_edges = np.asarray(bins)
 
         # Compute histogram using distributed Bucketizer + groupBy
-        histogram_df = self._compute_histogram_distributed(df, column, bin_edges)
+        # Use filtered DataFrame to avoid null bin_id issues
+        histogram_df = self._compute_histogram_distributed(df_filtered, column, bin_edges)
 
         # Collect ONLY the aggregated histogram (small data)
         hist_data = histogram_df.orderBy("bin_id").collect()

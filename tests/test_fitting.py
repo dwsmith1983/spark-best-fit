@@ -1,12 +1,16 @@
 """Tests for fitting module."""
 
 import numpy as np
+import pytest
 import scipy.stats as st
 
 from spark_dist_fit.fitting import (
+    FITTING_SAMPLE_SIZE,
     compute_information_criteria,
+    compute_pdf_range,
     create_sample_data,
     evaluate_pdf,
+    extract_distribution_params,
     fit_single_distribution,
 )
 
@@ -430,3 +434,208 @@ class TestCreateSampleDataEdgeCases:
         sample = create_sample_data(data, sample_size=3, random_seed=42)
 
         assert sample.dtype == data.dtype
+
+
+class TestExtractDistributionParams:
+    """Tests for extract_distribution_params utility function."""
+
+    def test_extract_two_params(self):
+        """Test extracting from 2-parameter distribution (normal)."""
+        params = [50.0, 10.0]  # loc=50, scale=10
+        shape, loc, scale = extract_distribution_params(params)
+
+        assert shape == ()
+        assert loc == 50.0
+        assert scale == 10.0
+
+    def test_extract_three_params(self):
+        """Test extracting from 3-parameter distribution (gamma)."""
+        params = [2.0, 0.0, 5.0]  # a=2, loc=0, scale=5
+        shape, loc, scale = extract_distribution_params(params)
+
+        assert shape == (2.0,)
+        assert loc == 0.0
+        assert scale == 5.0
+
+    def test_extract_four_params(self):
+        """Test extracting from 4-parameter distribution (beta)."""
+        params = [2.0, 5.0, 0.0, 1.0]  # a=2, b=5, loc=0, scale=1
+        shape, loc, scale = extract_distribution_params(params)
+
+        assert shape == (2.0, 5.0)
+        assert loc == 0.0
+        assert scale == 1.0
+
+    def test_extract_many_params(self):
+        """Test extracting from distribution with many shape params."""
+        params = [1.0, 2.0, 3.0, 4.0, 0.0, 1.0]  # 4 shape params + loc + scale
+        shape, loc, scale = extract_distribution_params(params)
+
+        assert shape == (1.0, 2.0, 3.0, 4.0)
+        assert loc == 0.0
+        assert scale == 1.0
+
+    def test_extract_insufficient_params_raises(self):
+        """Test that fewer than 2 params raises ValueError."""
+        with pytest.raises(ValueError, match="at least 2 elements"):
+            extract_distribution_params([1.0])
+
+    def test_extract_empty_params_raises(self):
+        """Test that empty params raises ValueError."""
+        with pytest.raises(ValueError, match="at least 2 elements"):
+            extract_distribution_params([])
+
+    def test_extract_returns_tuple_for_shape(self):
+        """Test that shape is always returned as tuple."""
+        params = [50.0, 10.0]
+        shape, _, _ = extract_distribution_params(params)
+
+        assert isinstance(shape, tuple)
+
+    def test_extract_with_list_input(self):
+        """Test that list input works correctly."""
+        params = [2.0, 0.0, 5.0]
+        shape, loc, scale = extract_distribution_params(params)
+
+        assert shape == (2.0,)
+        assert loc == 0.0
+        assert scale == 5.0
+
+
+class TestComputePdfRange:
+    """Tests for compute_pdf_range utility function."""
+
+    def test_range_for_normal_distribution(self):
+        """Test computing range for normal distribution."""
+        dist = st.norm
+        params = [0.0, 1.0]  # loc=0, scale=1
+        x_hist = np.linspace(-5, 5, 50)
+
+        start, end = compute_pdf_range(dist, params, x_hist)
+
+        # For standard normal, 0.01 to 0.99 percentile is about -2.33 to 2.33
+        assert -3.0 < start < -2.0
+        assert 2.0 < end < 3.0
+        assert start < end
+
+    def test_range_for_gamma_distribution(self):
+        """Test computing range for gamma distribution."""
+        dist = st.gamma
+        params = [2.0, 0.0, 1.0]  # shape=2, loc=0, scale=1
+        x_hist = np.linspace(0, 10, 50)
+
+        start, end = compute_pdf_range(dist, params, x_hist)
+
+        # Gamma with shape=2 starts near 0
+        assert start >= 0
+        assert end > start
+
+    def test_range_uses_custom_percentile(self):
+        """Test that custom percentile affects range."""
+        dist = st.norm
+        params = [0.0, 1.0]
+        x_hist = np.linspace(-5, 5, 50)
+
+        # Narrow range (5th to 95th percentile)
+        start_narrow, end_narrow = compute_pdf_range(dist, params, x_hist, percentile=0.05)
+
+        # Wide range (1st to 99th percentile)
+        start_wide, end_wide = compute_pdf_range(dist, params, x_hist, percentile=0.01)
+
+        # Wide range should be wider
+        assert start_wide < start_narrow
+        assert end_wide > end_narrow
+
+    def test_range_fallback_on_ppf_failure(self):
+        """Test fallback to histogram bounds when ppf fails."""
+        # Create a mock distribution that raises on ppf
+        class FailingDist:
+            def ppf(self, *args, **kwargs):
+                raise ValueError("ppf failed")
+
+        dist = FailingDist()
+        params = [0.0, 1.0]
+        x_hist = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+
+        start, end = compute_pdf_range(dist, params, x_hist)
+
+        # Should fall back to histogram bounds
+        assert start == 1.0
+        assert end == 5.0
+
+    def test_range_fallback_on_nonfinite_start(self):
+        """Test fallback when ppf returns non-finite start."""
+
+        class InfStartDist:
+            def ppf(self, q, *args, **kwargs):
+                if q < 0.5:
+                    return np.inf
+                return 1.0
+
+        dist = InfStartDist()
+        params = [0.0, 1.0]
+        x_hist = np.array([1.0, 2.0, 3.0])
+
+        start, end = compute_pdf_range(dist, params, x_hist)
+
+        # Start should fall back to x_hist.min()
+        assert start == 1.0
+
+    def test_range_fallback_on_nonfinite_end(self):
+        """Test fallback when ppf returns non-finite end."""
+
+        class InfEndDist:
+            def ppf(self, q, *args, **kwargs):
+                if q > 0.5:
+                    return np.nan
+                return 0.0
+
+        dist = InfEndDist()
+        params = [0.0, 1.0]
+        x_hist = np.array([1.0, 2.0, 3.0])
+
+        start, end = compute_pdf_range(dist, params, x_hist)
+
+        # End should fall back to x_hist.max()
+        assert end == 3.0
+
+    def test_range_returns_floats(self):
+        """Test that range returns Python floats."""
+        dist = st.norm
+        params = [0.0, 1.0]
+        x_hist = np.linspace(-5, 5, 50)
+
+        start, end = compute_pdf_range(dist, params, x_hist)
+
+        assert isinstance(start, float)
+        assert isinstance(end, float)
+
+    def test_range_with_real_scipy_distributions(self):
+        """Test range computation with various real scipy distributions."""
+        distributions = [
+            (st.norm, [0.0, 1.0]),
+            (st.expon, [0.0, 1.0]),
+            (st.gamma, [2.0, 0.0, 1.0]),
+            (st.beta, [2.0, 5.0, 0.0, 1.0]),
+            (st.uniform, [0.0, 1.0]),
+        ]
+        x_hist = np.linspace(-5, 10, 50)
+
+        for dist, params in distributions:
+            start, end = compute_pdf_range(dist, params, x_hist)
+
+            assert np.isfinite(start), f"start not finite for {dist.name}"
+            assert np.isfinite(end), f"end not finite for {dist.name}"
+            assert start < end, f"start >= end for {dist.name}"
+
+
+class TestFittingSampleSizeConstant:
+    """Tests for FITTING_SAMPLE_SIZE constant."""
+
+    def test_fitting_sample_size_value(self):
+        """Test that FITTING_SAMPLE_SIZE has expected value."""
+        assert FITTING_SAMPLE_SIZE == 10_000
+
+    def test_fitting_sample_size_is_int(self):
+        """Test that FITTING_SAMPLE_SIZE is an integer."""
+        assert isinstance(FITTING_SAMPLE_SIZE, int)

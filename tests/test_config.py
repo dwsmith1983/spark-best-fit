@@ -1,11 +1,18 @@
 """Tests for configuration module."""
 
 import tempfile
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 import pytest
 
-from spark_dist_fit.config import FitConfig, PlotConfig
+from spark_dist_fit.config import (
+    DEFAULT_EXCLUDED_DISTRIBUTIONS,
+    AppConfig,
+    FitConfig,
+    PlotConfig,
+    SparkConfig,
+)
 
 
 class TestFitConfig:
@@ -289,3 +296,284 @@ class TestFitConfigEdgeCases:
         assert config.sample_threshold == 5000000
         assert config.num_partitions == 20
         assert config.random_seed == 123
+
+
+class TestSparkConfig:
+    """Tests for SparkConfig dataclass."""
+
+    def test_default_values(self):
+        """Test that default values are set correctly."""
+        config = SparkConfig()
+
+        assert config.app_name == "spark-dist-fit"
+        assert config.arrow_enabled is True
+        assert config.adaptive_enabled is True
+        assert config.adaptive_coalesce_enabled is True
+        assert config.extra_config == ()
+
+    def test_custom_values(self):
+        """Test creating SparkConfig with custom values."""
+        config = SparkConfig(
+            app_name="my-app",
+            arrow_enabled=False,
+            adaptive_enabled=False,
+            adaptive_coalesce_enabled=False,
+        )
+
+        assert config.app_name == "my-app"
+        assert config.arrow_enabled is False
+        assert config.adaptive_enabled is False
+        assert config.adaptive_coalesce_enabled is False
+
+    def test_to_spark_config_defaults(self):
+        """Test to_spark_config returns correct Spark settings."""
+        config = SparkConfig()
+        spark_settings = config.to_spark_config()
+
+        assert spark_settings["spark.sql.execution.arrow.pyspark.enabled"] == "true"
+        assert spark_settings["spark.sql.adaptive.enabled"] == "true"
+        assert spark_settings["spark.sql.adaptive.coalescePartitions.enabled"] == "true"
+
+    def test_to_spark_config_disabled(self):
+        """Test to_spark_config with disabled settings."""
+        config = SparkConfig(
+            arrow_enabled=False,
+            adaptive_enabled=False,
+            adaptive_coalesce_enabled=False,
+        )
+        spark_settings = config.to_spark_config()
+
+        assert spark_settings["spark.sql.execution.arrow.pyspark.enabled"] == "false"
+        assert spark_settings["spark.sql.adaptive.enabled"] == "false"
+        assert spark_settings["spark.sql.adaptive.coalescePartitions.enabled"] == "false"
+
+    def test_to_spark_config_with_extra_config(self):
+        """Test to_spark_config includes extra_config settings."""
+        config = SparkConfig(
+            extra_config=(
+                ("spark.executor.memory", "4g"),
+                ("spark.driver.memory", "2g"),
+            )
+        )
+        spark_settings = config.to_spark_config()
+
+        assert spark_settings["spark.executor.memory"] == "4g"
+        assert spark_settings["spark.driver.memory"] == "2g"
+        # Default settings should still be present
+        assert spark_settings["spark.sql.execution.arrow.pyspark.enabled"] == "true"
+
+    def test_load_from_file(self):
+        """Test loading SparkConfig from HOCON file."""
+        hocon_content = """
+        app_name = "test-app"
+        arrow_enabled = false
+        adaptive_enabled = true
+        adaptive_coalesce_enabled = false
+        """
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
+            f.write(hocon_content)
+            temp_path = f.name
+
+        try:
+            config = SparkConfig.from_file(temp_path)
+
+            assert config.app_name == "test-app"
+            assert config.arrow_enabled is False
+            assert config.adaptive_enabled is True
+            assert config.adaptive_coalesce_enabled is False
+        finally:
+            Path(temp_path).unlink()
+
+    def test_load_from_string(self):
+        """Test loading SparkConfig from string."""
+        config_str = """
+        app_name = "string-app"
+        arrow_enabled = true
+        """
+
+        config = SparkConfig.from_string(config_str)
+
+        assert config.app_name == "string-app"
+        assert config.arrow_enabled is True
+
+    def test_immutability(self):
+        """Test that SparkConfig is immutable (frozen)."""
+        config = SparkConfig()
+
+        with pytest.raises(FrozenInstanceError):
+            config.app_name = "new-name"
+
+
+class TestAppConfig:
+    """Tests for AppConfig dataclass (nested config loading)."""
+
+    def test_default_values(self):
+        """Test that AppConfig creates default nested configs."""
+        config = AppConfig()
+
+        assert isinstance(config.spark, SparkConfig)
+        assert isinstance(config.fit, FitConfig)
+        assert isinstance(config.plot, PlotConfig)
+
+    def test_nested_defaults(self):
+        """Test that nested configs have their default values."""
+        config = AppConfig()
+
+        # SparkConfig defaults
+        assert config.spark.app_name == "spark-dist-fit"
+        assert config.spark.arrow_enabled is True
+
+        # FitConfig defaults
+        assert config.fit.bins == 50
+        assert config.fit.use_rice_rule is True
+
+        # PlotConfig defaults
+        assert config.plot.figsize == (12, 8)
+        assert config.plot.dpi == 600
+
+    def test_load_from_file(self):
+        """Test loading AppConfig from HOCON file with all sections."""
+        hocon_content = """
+        spark {
+            app_name = "full-app"
+            arrow_enabled = false
+        }
+        fit {
+            bins = 100
+            support_at_zero = true
+        }
+        plot {
+            dpi = 300
+            figsize = [16, 10]
+        }
+        """
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
+            f.write(hocon_content)
+            temp_path = f.name
+
+        try:
+            config = AppConfig.from_file(temp_path)
+
+            # Verify spark section
+            assert config.spark.app_name == "full-app"
+            assert config.spark.arrow_enabled is False
+
+            # Verify fit section
+            assert config.fit.bins == 100
+            assert config.fit.support_at_zero is True
+
+            # Verify plot section
+            assert config.plot.dpi == 300
+            assert config.plot.figsize == (16, 10)
+        finally:
+            Path(temp_path).unlink()
+
+    def test_load_from_file_partial(self):
+        """Test loading AppConfig with only some sections defined."""
+        hocon_content = """
+        spark {
+            app_name = "partial-app"
+        }
+        fit {
+            bins = 75
+        }
+        """
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
+            f.write(hocon_content)
+            temp_path = f.name
+
+        try:
+            config = AppConfig.from_file(temp_path)
+
+            # Defined values
+            assert config.spark.app_name == "partial-app"
+            assert config.fit.bins == 75
+
+            # Defaults should be preserved
+            assert config.spark.arrow_enabled is True
+            assert config.plot.dpi == 600
+        finally:
+            Path(temp_path).unlink()
+
+    def test_load_from_string(self):
+        """Test loading AppConfig from string."""
+        config_str = """
+        spark {
+            app_name = "string-app"
+        }
+        fit {
+            bins = 50
+            random_seed = 999
+        }
+        plot {
+            dpi = 150
+        }
+        """
+
+        config = AppConfig.from_string(config_str)
+
+        assert config.spark.app_name == "string-app"
+        assert config.fit.random_seed == 999
+        assert config.plot.dpi == 150
+
+    def test_immutability(self):
+        """Test that AppConfig is immutable (frozen)."""
+        config = AppConfig()
+
+        with pytest.raises(FrozenInstanceError):
+            config.spark = SparkConfig(app_name="new")
+
+    def test_nested_immutability(self):
+        """Test that nested configs are also immutable."""
+        config = AppConfig()
+
+        with pytest.raises(FrozenInstanceError):
+            config.spark.app_name = "new-name"
+
+
+class TestConfigImmutability:
+    """Tests for frozen dataclass immutability."""
+
+    def test_fit_config_immutable(self):
+        """Test that FitConfig cannot be modified after creation."""
+        config = FitConfig()
+
+        with pytest.raises(FrozenInstanceError):
+            config.bins = 100
+
+    def test_plot_config_immutable(self):
+        """Test that PlotConfig cannot be modified after creation."""
+        config = PlotConfig()
+
+        with pytest.raises(FrozenInstanceError):
+            config.dpi = 300
+
+    def test_spark_config_immutable(self):
+        """Test that SparkConfig cannot be modified after creation."""
+        config = SparkConfig()
+
+        with pytest.raises(FrozenInstanceError):
+            config.arrow_enabled = False
+
+
+class TestDefaultExcludedDistributions:
+    """Tests for DEFAULT_EXCLUDED_DISTRIBUTIONS constant."""
+
+    def test_is_tuple(self):
+        """Test that DEFAULT_EXCLUDED_DISTRIBUTIONS is an immutable tuple."""
+        assert isinstance(DEFAULT_EXCLUDED_DISTRIBUTIONS, tuple)
+
+    def test_contains_expected_distributions(self):
+        """Test that expected slow distributions are excluded."""
+        expected = ["levy_stable", "kappa4", "ncx2", "ksone", "ncf", "wald", "mielke", "exonpow"]
+
+        for dist in expected:
+            assert dist in DEFAULT_EXCLUDED_DISTRIBUTIONS
+
+    def test_fit_config_uses_default(self):
+        """Test that FitConfig uses DEFAULT_EXCLUDED_DISTRIBUTIONS by default."""
+        config = FitConfig()
+        assert config.excluded_distributions == DEFAULT_EXCLUDED_DISTRIBUTIONS

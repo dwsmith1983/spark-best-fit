@@ -14,10 +14,21 @@ class TestDistributionFitter:
         """Test fitter initialization with defaults."""
         fitter = DistributionFitter(spark_session)
 
+        # Verify spark session is set correctly
         assert fitter.spark == spark_session
-        # Check type by class name (avoids src layout double-import issue)
-        assert type(fitter.config).__name__ == "FitConfig"
-        assert type(fitter.registry).__name__ == "DistributionRegistry"
+        assert fitter.spark is spark_session
+
+        # Verify default config values are applied
+        assert fitter.config.bins == 50  # Default bins
+        assert fitter.config.use_rice_rule is True  # Default rice rule
+        assert fitter.config.support_at_zero is False  # Default support_at_zero
+        assert fitter.config.enable_sampling is True  # Default sampling
+
+        # Verify registry is functional
+        distributions = fitter.registry.get_distributions()
+        assert len(distributions) > 0
+        assert "norm" in distributions
+        assert "expon" in distributions
 
     def test_initialization_with_custom_config(self, spark_session):
         """Test fitter initialization with custom config."""
@@ -168,16 +179,30 @@ class TestDistributionFitter:
         assert partitions >= 1
 
     def test_fit_caches_results(self, spark_session, small_dataset):
-        """Test that fit results are cached."""
+        """Test that fit results are cached and consistent."""
         fitter = DistributionFitter(spark_session)
         results = fitter.fit(small_dataset, column="value", max_distributions=5)
 
-        # Access count multiple times (should use cache)
+        # Access results multiple times (should use cache)
         count1 = results.count()
         count2 = results.count()
+        best1 = results.best(n=1)[0]
+        best2 = results.best(n=1)[0]
 
+        # Counts should be consistent
         assert count1 == count2
         assert count1 > 0
+
+        # Best results should be identical
+        assert best1.distribution == best2.distribution
+        assert best1.sse == best2.sse
+        assert best1.parameters == best2.parameters
+
+        # DataFrame should also be consistent
+        df1 = results.to_pandas()
+        df2 = results.to_pandas()
+        assert len(df1) == len(df2)
+        assert list(df1["distribution"]) == list(df2["distribution"])
 
     def test_fit_returns_valid_results(self, spark_session, small_dataset):
         """Test that fitter returns valid FitResults."""

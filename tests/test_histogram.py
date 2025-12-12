@@ -1,6 +1,7 @@
 """Tests for histogram computation module."""
 
 import numpy as np
+import pytest
 
 from spark_dist_fit.histogram import HistogramComputer
 
@@ -199,3 +200,140 @@ class TestHistogramComputer:
         bin_width = x_hist[1] - x_hist[0]
         total_area = np.sum(y_hist * bin_width)
         assert np.isclose(total_area, 1.0, atol=0.01)
+
+
+class TestHistogramErrorHandling:
+    """Error handling tests for HistogramComputer."""
+
+    def test_invalid_column_name(self, spark_session, small_dataset):
+        """Test that invalid column name raises appropriate error."""
+        computer = HistogramComputer()
+
+        with pytest.raises(Exception):  # Spark will raise AnalysisException
+            computer.compute_histogram(small_dataset, "nonexistent_column", bins=50)
+
+    def test_empty_dataframe(self, spark_session):
+        """Test histogram computation with empty DataFrame raises ValueError."""
+        empty_df = spark_session.createDataFrame([], "value: double")
+        computer = HistogramComputer()
+
+        # Empty DataFrame should raise ValueError with descriptive message
+        with pytest.raises(ValueError, match="no valid"):
+            computer.compute_histogram(empty_df, "value", bins=50)
+
+    def test_single_row_dataframe(self, spark_session):
+        """Test histogram computation with single row."""
+        single_row_df = spark_session.createDataFrame([(42.0,)], ["value"])
+        computer = HistogramComputer()
+
+        y_hist, x_hist = computer.compute_histogram(single_row_df, "value", bins=50)
+
+        # Should handle single value case (like constant dataset)
+        assert len(y_hist) >= 1
+        assert len(x_hist) >= 1
+
+    def test_two_distinct_values(self, spark_session):
+        """Test histogram with only two distinct values."""
+        df = spark_session.createDataFrame([(1.0,), (100.0,)], ["value"])
+        computer = HistogramComputer()
+
+        y_hist, x_hist = computer.compute_histogram(df, "value", bins=50)
+
+        # Should create proper histogram with two values
+        assert len(y_hist) == 50
+        assert len(x_hist) == 50
+
+    def test_all_null_values(self, spark_session):
+        """Test histogram computation with all null values raises ValueError."""
+        null_df = spark_session.createDataFrame([(None,), (None,), (None,)], "value: double")
+        computer = HistogramComputer()
+
+        # All null values should raise ValueError with descriptive message
+        with pytest.raises(ValueError, match="no valid"):
+            computer.compute_histogram(null_df, "value", bins=50)
+
+    def test_mixed_null_values(self, spark_session):
+        """Test histogram with some null values mixed in filters them out."""
+        data = [(float(i),) for i in range(100)] + [(None,) for _ in range(10)]
+        df = spark_session.createDataFrame(data, ["value"])
+        computer = HistogramComputer()
+
+        # Null values should be filtered out, histogram computed on valid values
+        y_hist, x_hist = computer.compute_histogram(df, "value", bins=10)
+
+        assert len(y_hist) == 10
+        assert len(x_hist) == 10
+        assert np.all(y_hist >= 0)
+
+    def test_very_large_bin_count(self, spark_session, small_dataset):
+        """Test histogram with very large number of bins."""
+        computer = HistogramComputer()
+
+        # Many bins (more than data points would have in many bins)
+        y_hist, x_hist = computer.compute_histogram(small_dataset, "value", bins=1000)
+
+        assert len(y_hist) == 1000
+        assert len(x_hist) == 1000
+
+    def test_single_bin(self, spark_session, small_dataset):
+        """Test histogram with bins=1 is automatically upgraded to bins=2.
+
+        Spark's Bucketizer requires at least 3 splits (2 bins minimum).
+        The code automatically upgrades bins=1 to bins=2.
+        """
+        computer = HistogramComputer()
+
+        # bins=1 is upgraded to bins=2
+        y_hist, x_hist = computer.compute_histogram(small_dataset, "value", bins=1)
+
+        assert len(y_hist) == 2
+        assert len(x_hist) == 2
+
+    def test_rice_rule_small_dataset(self, spark_session):
+        """Test Rice rule with very small dataset."""
+        small_df = spark_session.createDataFrame([(float(i),) for i in range(5)], ["value"])
+        computer = HistogramComputer()
+
+        y_hist, x_hist = computer.compute_histogram(
+            small_df, "value", bins=50, use_rice_rule=True, approx_count=5
+        )
+
+        # Rice rule with n=5: bins = 2 * 5^(1/3) ≈ 3.4 → 4 bins
+        expected_bins = int(np.ceil(5 ** (1 / 3)) * 2)
+        assert len(y_hist) == expected_bins
+
+    def test_compute_statistics_invalid_column(self, spark_session, small_dataset):
+        """Test compute_statistics with invalid column."""
+        computer = HistogramComputer()
+
+        with pytest.raises(Exception):
+            computer.compute_statistics(small_dataset, "nonexistent_column")
+
+    def test_compute_statistics_empty_dataframe(self, spark_session):
+        """Test compute_statistics with empty DataFrame."""
+        empty_df = spark_session.createDataFrame([], "value: double")
+        computer = HistogramComputer()
+
+        stats = computer.compute_statistics(empty_df, "value")
+
+        # Should return stats with None values or zeros
+        assert "count" in stats
+        assert stats["count"] == 0 or stats["count"] is None
+
+    def test_histogram_returns_numpy_arrays(self, spark_session, small_dataset):
+        """Test that histogram returns numpy arrays."""
+        computer = HistogramComputer()
+        y_hist, x_hist = computer.compute_histogram(small_dataset, "value", bins=50)
+
+        assert isinstance(y_hist, np.ndarray)
+        assert isinstance(x_hist, np.ndarray)
+
+    def test_histogram_preserves_data_range(self, spark_session, small_dataset):
+        """Test that histogram x values cover the data range."""
+        computer = HistogramComputer()
+        stats = computer.compute_statistics(small_dataset, "value")
+        y_hist, x_hist = computer.compute_histogram(small_dataset, "value", bins=50)
+
+        # Bin centers should be within or close to data range
+        assert x_hist.min() >= stats["min"] - (x_hist[1] - x_hist[0])
+        assert x_hist.max() <= stats["max"] + (x_hist[1] - x_hist[0])

@@ -68,13 +68,28 @@ class TestPlotDistribution:
     """Tests for plot_distribution function."""
 
     def test_basic_plot(self, normal_result, sample_histogram, plot_config):
-        """Test basic distribution plotting."""
+        """Test basic distribution plotting creates valid figure with expected elements."""
         y_hist, x_hist = sample_histogram
 
         fig, ax = plot_distribution(normal_result, y_hist, x_hist, plot_config)
 
+        # Verify figure and axes are valid matplotlib objects
         assert fig is not None
         assert ax is not None
+        assert isinstance(fig, plt.Figure)
+        assert isinstance(ax, plt.Axes)
+
+        # Verify plot has expected elements
+        assert len(ax.patches) > 0  # Histogram bars
+        assert len(ax.lines) >= 1  # PDF line
+
+        # Verify legend exists
+        legend = ax.get_legend()
+        assert legend is not None
+        legend_texts = [t.get_text() for t in legend.get_texts()]
+        # Legend should have at least one entry (histogram or PDF line)
+        assert len(legend_texts) > 0
+
         plt.close(fig)
 
     def test_plot_with_title(self, normal_result, sample_histogram, plot_config):
