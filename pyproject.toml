@@ -26,8 +26,6 @@ classifiers = [
 ]
 
 dependencies = [
-    "pyspark>=4.0.0,<5.0.0",
-    "pyarrow>=17.0.0,<23.0.0",
     "pandas>=2.2.0,<3.0.0",
     "numpy>=2.0.0,<3.0.0",
     "scipy>=1.14.0,<2.0.0",
@@ -43,6 +41,8 @@ Issues = "https://github.com/dwsmith1983/spark-best-fit/issues"
 
 [project.optional-dependencies]
 dev = [
+    "pyspark>=3.2.0,<5.0.0",
+    "pyarrow>=17.0.0,<23.0.0",
     "pytest>=8.3.0",
     "pytest-cov>=6.0.0",
     "pytest-spark>=0.6.0",
