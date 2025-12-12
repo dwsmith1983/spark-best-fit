@@ -182,8 +182,15 @@ class DistributionFitter(SparkSessionWrapper):
 
         finally:
             # Clean up broadcast variables to prevent memory leaks
-            histogram_bc.unpersist()
-            data_sample_bc.unpersist()
+            # Use try/except to ensure both are cleaned up even if one fails
+            try:
+                histogram_bc.unpersist()
+            except Exception:
+                pass
+            try:
+                data_sample_bc.unpersist()
+            except Exception:
+                pass
 
     @staticmethod
     def _validate_inputs(df: DataFrame, column: str, max_distributions: Optional[int]) -> None:
@@ -228,8 +235,8 @@ class DistributionFitter(SparkSessionWrapper):
         if config.sample_fraction is not None:
             fraction = config.sample_fraction
         else:
-            # Auto-determine: aim for max_sample_size rows
-            fraction = min(config.max_sample_size / row_count, 0.35)
+            # Auto-determine: aim for max_sample_size rows, capped by max_sample_fraction
+            fraction = min(config.max_sample_size / row_count, config.max_sample_fraction)
 
         logger.info(
             "Sampling %.1f%% of data (%d rows)",

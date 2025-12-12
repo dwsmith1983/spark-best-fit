@@ -101,8 +101,8 @@ def fit_single_distribution(
         Dictionary with keys: distribution, parameters, sse, aic, bic
     """
     try:
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore")
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
 
             # Get distribution object
             dist = getattr(st, dist_name)
@@ -110,14 +110,28 @@ def fit_single_distribution(
             # Fit distribution to data sample
             params = dist.fit(data_sample)
 
+            # Check for NaN in parameters (convergence failure)
+            if any(not np.isfinite(p) for p in params):
+                return _failed_fit_result(dist_name)
+
             # Evaluate PDF at histogram bin centers
             pdf_values = evaluate_pdf(dist, params, x_hist)
 
             # Compute Sum of Squared Errors
             sse = np.sum((y_hist - pdf_values) ** 2.0)
 
+            # Check for invalid SSE
+            if not np.isfinite(sse):
+                return _failed_fit_result(dist_name)
+
             # Compute information criteria
             aic, bic = compute_information_criteria(dist, params, data_sample)
+
+            # Log any warnings that were caught (for debugging)
+            for w in caught_warnings:
+                if "convergence" in str(w.message).lower() or "nan" in str(w.message).lower():
+                    # These indicate fitting issues - return failed result
+                    return _failed_fit_result(dist_name)
 
             return {
                 "distribution": dist_name,
@@ -128,15 +142,25 @@ def fit_single_distribution(
             }
 
     except (ValueError, RuntimeError, FloatingPointError, AttributeError):
-        # Return sentinel values for failed fits
-        # Use [np.nan] for parameters to maintain non-empty list
-        return {
-            "distribution": dist_name,
-            "parameters": [float(np.nan)],
-            "sse": float(np.inf),
-            "aic": float(np.inf),
-            "bic": float(np.inf),
-        }
+        return _failed_fit_result(dist_name)
+
+
+def _failed_fit_result(dist_name: str) -> Dict[str, Any]:
+    """Return sentinel values for failed fits.
+
+    Args:
+        dist_name: Name of the distribution that failed
+
+    Returns:
+        Dictionary with sentinel values indicating fit failure
+    """
+    return {
+        "distribution": dist_name,
+        "parameters": [float(np.nan)],
+        "sse": float(np.inf),
+        "aic": float(np.inf),
+        "bic": float(np.inf),
+    }
 
 
 def evaluate_pdf(dist: Any, params: Tuple[float, ...], x: np.ndarray) -> np.ndarray:

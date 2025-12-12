@@ -666,6 +666,31 @@ class TestFitConfigValidation:
         config = FitConfig(num_partitions=None)
         assert config.num_partitions is None
 
+    def test_invalid_max_sample_fraction_zero(self):
+        """Test that max_sample_fraction=0 raises ValueError."""
+        with pytest.raises(ValueError, match="max_sample_fraction must be in"):
+            FitConfig(max_sample_fraction=0.0)
+
+    def test_invalid_max_sample_fraction_negative(self):
+        """Test that negative max_sample_fraction raises ValueError."""
+        with pytest.raises(ValueError, match="max_sample_fraction must be in"):
+            FitConfig(max_sample_fraction=-0.1)
+
+    def test_invalid_max_sample_fraction_over_one(self):
+        """Test that max_sample_fraction > 1 raises ValueError."""
+        with pytest.raises(ValueError, match="max_sample_fraction must be in"):
+            FitConfig(max_sample_fraction=1.5)
+
+    def test_valid_max_sample_fraction(self):
+        """Test that valid max_sample_fraction is accepted."""
+        config = FitConfig(max_sample_fraction=0.5)
+        assert config.max_sample_fraction == 0.5
+
+    def test_default_max_sample_fraction(self):
+        """Test that default max_sample_fraction is 0.35."""
+        config = FitConfig()
+        assert config.max_sample_fraction == 0.35
+
 
 class TestPlotConfigValidation:
     """Tests for PlotConfig validation errors."""
