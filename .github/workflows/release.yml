@@ -6,6 +6,8 @@ on:
 
 jobs:
   release:
+    # Skip if commit is from semantic-release
+    if: "!startsWith(github.event.head_commit.message, 'chore(release):')"
     runs-on: ubuntu-latest
     concurrency: release
     permissions:
