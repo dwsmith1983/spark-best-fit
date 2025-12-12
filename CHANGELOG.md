@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.4.3 (2025-12-12)
+
+### Bug Fixes
+
+- Add type hints and performance regression tests
+  ([#13](https://github.com/dwsmith1983/spark-best-fit/pull/13),
+  [`19f4856`](https://github.com/dwsmith1983/spark-best-fit/commit/19f4856c95d5ab5743f70e6c5ca6274688a1dcd2))
+
+
 ## v1.4.2 (2025-12-12)
 
 ### Bug Fixes
