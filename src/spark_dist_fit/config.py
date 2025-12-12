@@ -90,14 +90,23 @@ class SparkConfig(ConfigLoadMixin):
 
 # Default excluded distributions (slow or numerically unstable)
 DEFAULT_EXCLUDED_DISTRIBUTIONS: Tuple[str, ...] = (
-    "levy_stable",
-    "kappa4",
-    "ncx2",
-    "ksone",
-    "ncf",
-    "wald",
-    "mielke",
-    "exonpow",
+    "levy_stable",  # Extremely slow - MLE doesn't always converge
+    "kappa4",  # Extremely slow
+    "ncx2",  # Slow - non-central chi-squared
+    "ksone",  # Slow - Kolmogorov-Smirnov one-sided
+    "ncf",  # Slow - non-central F
+    "wald",  # Sometimes numerically unstable
+    "mielke",  # Slow
+    "exonpow",  # Slow - exponential power
+    "studentized_range",  # Very slow - scipy docs recommend approximation
+    "gausshyper",  # Very slow - Gauss hypergeometric
+    "geninvgauss",  # Can hang - generalized inverse Gaussian
+    "genhyperbolic",  # Slow - generalized hyperbolic
+    "kstwo",  # Slow - Kolmogorov-Smirnov two-sided
+    "kstwobign",  # Slow - KS limit distribution
+    "recipinvgauss",  # Can be slow
+    "vonmises",  # Can be slow on fitting
+    "vonmises_line",  # Can be slow on fitting
 )
 
 
@@ -122,11 +131,27 @@ class FitConfig(ConfigLoadMixin):
         }
         ```
 
+    To customize excluded distributions (e.g., to include a slow distribution):
+        ```python
+        from spark_dist_fit import FitConfig, DEFAULT_EXCLUDED_DISTRIBUTIONS
+
+        # Remove a specific distribution from exclusions
+        exclusions = [d for d in DEFAULT_EXCLUDED_DISTRIBUTIONS if d != "studentized_range"]
+        config = FitConfig(excluded_distributions=tuple(exclusions))
+
+        # Or use minimal exclusions (warning: some distributions are very slow)
+        config = FitConfig(excluded_distributions=("levy_stable", "kappa4"))
+
+        # Or no exclusions (warning: fitting may hang on slow distributions)
+        config = FitConfig(excluded_distributions=())
+        ```
+
     Attributes:
         bins: Number of histogram bins or array of bin edges
         use_rice_rule: Use Rice rule to automatically determine bin count
         support_at_zero: Only fit distributions with support at zero (non-negative)
-        excluded_distributions: Tuple of scipy distribution names to exclude from fitting
+        excluded_distributions: Tuple of scipy distribution names to exclude from fitting.
+            Defaults to DEFAULT_EXCLUDED_DISTRIBUTIONS which excludes slow distributions.
         enable_sampling: Enable sampling for large datasets
         sample_fraction: Fraction of data to sample (None = auto-determine)
         max_sample_size: Maximum number of rows to sample

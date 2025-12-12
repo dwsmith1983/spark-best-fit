@@ -232,13 +232,25 @@ fitter.plot(
 | `bins` | int/array | 50 | Number of histogram bins |
 | `use_rice_rule` | bool | True | Auto-calculate bins using Rice rule |
 | `support_at_zero` | bool | False | Only fit non-negative distributions |
-| `excluded_distributions` | list | [...] | Distributions to exclude |
+| `excluded_distributions` | list | [...] | Distributions to exclude (see below) |
 | `enable_sampling` | bool | True | Enable sampling for large datasets |
 | `sample_fraction` | float | None | Fraction to sample (None = auto) |
 | `max_sample_size` | int | 1,000,000 | Max rows to sample |
 | `sample_threshold` | int | 10,000,000 | Row count above which to sample |
 | `num_partitions` | int | None | Spark partitions (None = auto) |
 | `random_seed` | int | 42 | Random seed |
+
+#### Customizing Excluded Distributions
+
+By default, 17 slow scipy distributions are excluded to prevent fitting from hanging. To include a slow distribution:
+
+```python
+from spark_dist_fit import FitConfig, DEFAULT_EXCLUDED_DISTRIBUTIONS
+
+# Remove a specific distribution from exclusions
+exclusions = [d for d in DEFAULT_EXCLUDED_DISTRIBUTIONS if d != "studentized_range"]
+config = FitConfig(excluded_distributions=tuple(exclusions))
+```
 
 ### PlotConfig Options
 

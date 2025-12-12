@@ -36,7 +36,8 @@ class TestFitConfig:
         """Test that default exclusions are set."""
         config = FitConfig()
 
-        expected_exclusions = [
+        # Core slow distributions that must be excluded
+        core_exclusions = [
             "levy_stable",
             "kappa4",
             "ncx2",
@@ -45,10 +46,19 @@ class TestFitConfig:
             "wald",
             "mielke",
             "exonpow",
+            "studentized_range",
+            "gausshyper",
+            "geninvgauss",
+            "genhyperbolic",
+            "kstwo",
+            "kstwobign",
+            "recipinvgauss",
+            "vonmises",
+            "vonmises_line",
         ]
 
-        assert len(config.excluded_distributions) == len(expected_exclusions)
-        for dist in expected_exclusions:
+        assert len(config.excluded_distributions) == 17
+        for dist in core_exclusions:
             assert dist in config.excluded_distributions
 
     def test_custom_values(self):
