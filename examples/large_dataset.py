@@ -41,6 +41,8 @@ for size in data_sizes:
     df.count()  # Materialize
 
     # Configure for large data
+    # Note: FitConfig uses DEFAULT_EXCLUDED_DISTRIBUTIONS which excludes
+    # slow distributions like studentized_range, gausshyper, geninvgauss, etc.
     config = FitConfig(
         bins=50,  # Fewer bins for speed
         enable_sampling=True,  # Enable sampling for large datasets
@@ -75,13 +77,7 @@ for size in data_sizes:
     df.unpersist()
 
 print("\n" + "=" * 80)
-print("PERFORMANCE COMPARISON")
-print("=" * 80)
-print(f"{'Size':<15} {'Time (s)':<15} {'Rows/sec':<15} {'Strategy'}")
-print("-" * 80)
-print(f"{'100K':<15} {'~5-10':<15} {'~10-20K':<15} {'SPARK_FULL'}")
-print(f"{'1M':<15} {'~15-30':<15} {'~30-65K':<15} {'SPARK_FULL'}")
-print(f"{'10M':<15} {'~60-120':<15} {'~80-165K':<15} {'SPARK_SAMPLED'}")
+print("PERFORMANCE DEMO COMPLETED")
 print("=" * 80)
 
 spark.stop()

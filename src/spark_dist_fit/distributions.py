@@ -29,14 +29,23 @@ class DistributionRegistry:
 
     # Default exclusions: distributions that are very slow or numerically unstable
     DEFAULT_EXCLUSIONS = {
-        "levy_stable",  # Extremely slow
+        "levy_stable",  # Extremely slow - MLE doesn't always converge
         "kappa4",  # Extremely slow
-        "ncx2",  # Slow
-        "ksone",  # Slow
-        "ncf",  # Slow
+        "ncx2",  # Slow - non-central chi-squared
+        "ksone",  # Slow - Kolmogorov-Smirnov one-sided
+        "ncf",  # Slow - non-central F
         "wald",  # Sometimes numerically unstable
         "mielke",  # Slow
-        "exonpow",  # Slow
+        "exonpow",  # Slow - exponential power
+        "studentized_range",  # Very slow - scipy docs recommend approximation
+        "gausshyper",  # Very slow - Gauss hypergeometric
+        "geninvgauss",  # Can hang - generalized inverse Gaussian
+        "genhyperbolic",  # Slow - generalized hyperbolic
+        "kstwo",  # Slow - Kolmogorov-Smirnov two-sided
+        "kstwobign",  # Slow - KS limit distribution
+        "recipinvgauss",  # Can be slow
+        "vonmises",  # Can be slow on fitting
+        "vonmises_line",  # Can be slow on fitting
     }
 
     # All scipy continuous distributions
