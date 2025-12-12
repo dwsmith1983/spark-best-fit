@@ -1,6 +1,6 @@
 # spark-dist-fit
 [![CI](https://github.com/dwsmith1983/spark-best-fit/actions/workflows/ci.yml/badge.svg)](https://github.com/dwsmith1983/spark-best-fit/actions/workflows/ci.yml)
-[![PyPI version](https://badge.fury.io/py/spark-dist-fit.svg)](https://pypi.org/project/spark-dist-fit/)
+[![PyPI version](https://img.shields.io/pypi/v/spark-dist-fit)](https://pypi.org/project/spark-dist-fit/)
 [![Documentation Status](https://readthedocs.org/projects/spark-dist-fit/badge/?version=latest)](https://spark-dist-fit.readthedocs.io/en/latest/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
@@ -11,8 +11,8 @@
 Automatically fit ~100 scipy.stats distributions to your data using Apache Spark's distributed computing power, with
 optimized Pandas UDFs.
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Spark 4.0+](https://img.shields.io/badge/spark-4.0+-orange.svg)](https://spark.apache.org/)
+[![Python 3.11-3.13](https://img.shields.io/badge/python-3.11--3.13-blue.svg)](https://www.python.org/downloads/)
+[![Spark 3.5+](https://img.shields.io/badge/spark-3.5+-orange.svg)](https://spark.apache.org/)
 
 ## Features
 
@@ -31,9 +31,23 @@ optimized Pandas UDFs.
 - HOCON/YAML/JSON configuration support
 - Type-safe configuration with dataclasses
 
+## Requirements
+
+### Compatibility Matrix
+
+| Spark Version | Python Versions | NumPy | Pandas | PyArrow |
+|---------------|-----------------|-------|--------|---------|
+| **3.5.x** | 3.11, 3.12 | 1.24+ (< 2.0) | 1.5+ | 12.0 - 16.x |
+| **4.0.x** | 3.12, 3.13 | 2.0+ | 2.2+ | 17.0+ |
+
+**Note:** Spark 3.5.x does not support NumPy 2.0. If using Spark 3.5 with Python 3.12, ensure `setuptools` is installed (provides `distutils`).
+
 ## Installation
 
 ```bash
+# From PyPI
+pip install spark-dist-fit
+
 # From source
 git clone <repository-url>
 cd spark-best-fit

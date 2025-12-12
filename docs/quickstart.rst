@@ -1,6 +1,35 @@
 Quick Start
 ===========
 
+Requirements
+------------
+
+Compatibility Matrix
+~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 20 20 20 20
+
+   * - Spark Version
+     - Python Versions
+     - NumPy
+     - Pandas
+     - PyArrow
+   * - **3.5.x**
+     - 3.11, 3.12
+     - 1.24+ (< 2.0)
+     - 1.5+
+     - 12.0 - 16.x
+   * - **4.0.x**
+     - 3.12, 3.13
+     - 2.0+
+     - 2.2+
+     - 17.0+
+
+.. note::
+   Spark 3.5.x does not support NumPy 2.0. If using Spark 3.5 with Python 3.12, ensure ``setuptools`` is installed (provides ``distutils``).
+
 Installation
 ------------
 
