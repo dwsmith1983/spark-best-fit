@@ -219,10 +219,9 @@ class TestPlotConfig:
             Path(temp_path).unlink()
 
     def test_invalid_format(self):
-        """Test that invalid save format is accepted (no validation)."""
-        config = PlotConfig(save_format="invalid")
-
-        assert config.save_format == "invalid"  # No validation in dataclass
+        """Test that invalid save format raises ValueError."""
+        with pytest.raises(ValueError, match="save_format must be one of"):
+            PlotConfig(save_format="invalid")
 
     def test_load_from_string(self):
         """Test loading PlotConfig from HOCON string."""
@@ -587,3 +586,185 @@ class TestDefaultExcludedDistributions:
         """Test that FitConfig uses DEFAULT_EXCLUDED_DISTRIBUTIONS by default."""
         config = FitConfig()
         assert config.excluded_distributions == DEFAULT_EXCLUDED_DISTRIBUTIONS
+
+
+class TestFitConfigValidation:
+    """Tests for FitConfig validation errors."""
+
+    def test_invalid_bins_zero(self):
+        """Test that bins=0 raises ValueError."""
+        with pytest.raises(ValueError, match="bins must be positive"):
+            FitConfig(bins=0)
+
+    def test_invalid_bins_negative(self):
+        """Test that negative bins raises ValueError."""
+        with pytest.raises(ValueError, match="bins must be positive"):
+            FitConfig(bins=-10)
+
+    def test_invalid_bins_tuple_too_short(self):
+        """Test that bins tuple with <2 edges raises ValueError."""
+        with pytest.raises(ValueError, match="bins array must have at least 2 edges"):
+            FitConfig(bins=(0.5,))
+
+    def test_valid_bins_tuple(self):
+        """Test that valid bins tuple is accepted."""
+        config = FitConfig(bins=(0, 10, 20, 30))
+        assert config.bins == (0, 10, 20, 30)
+
+    def test_invalid_sample_fraction_zero(self):
+        """Test that sample_fraction=0 raises ValueError."""
+        with pytest.raises(ValueError, match="sample_fraction must be in"):
+            FitConfig(sample_fraction=0.0)
+
+    def test_invalid_sample_fraction_negative(self):
+        """Test that negative sample_fraction raises ValueError."""
+        with pytest.raises(ValueError, match="sample_fraction must be in"):
+            FitConfig(sample_fraction=-0.5)
+
+    def test_invalid_sample_fraction_over_one(self):
+        """Test that sample_fraction > 1 raises ValueError."""
+        with pytest.raises(ValueError, match="sample_fraction must be in"):
+            FitConfig(sample_fraction=1.5)
+
+    def test_valid_sample_fraction_one(self):
+        """Test that sample_fraction=1.0 is valid."""
+        config = FitConfig(sample_fraction=1.0)
+        assert config.sample_fraction == 1.0
+
+    def test_invalid_max_sample_size_zero(self):
+        """Test that max_sample_size=0 raises ValueError."""
+        with pytest.raises(ValueError, match="max_sample_size must be positive"):
+            FitConfig(max_sample_size=0)
+
+    def test_invalid_max_sample_size_negative(self):
+        """Test that negative max_sample_size raises ValueError."""
+        with pytest.raises(ValueError, match="max_sample_size must be positive"):
+            FitConfig(max_sample_size=-100)
+
+    def test_invalid_sample_threshold_zero(self):
+        """Test that sample_threshold=0 raises ValueError."""
+        with pytest.raises(ValueError, match="sample_threshold must be positive"):
+            FitConfig(sample_threshold=0)
+
+    def test_invalid_sample_threshold_negative(self):
+        """Test that negative sample_threshold raises ValueError."""
+        with pytest.raises(ValueError, match="sample_threshold must be positive"):
+            FitConfig(sample_threshold=-1000)
+
+    def test_invalid_num_partitions_zero(self):
+        """Test that num_partitions=0 raises ValueError."""
+        with pytest.raises(ValueError, match="num_partitions must be positive"):
+            FitConfig(num_partitions=0)
+
+    def test_invalid_num_partitions_negative(self):
+        """Test that negative num_partitions raises ValueError."""
+        with pytest.raises(ValueError, match="num_partitions must be positive"):
+            FitConfig(num_partitions=-5)
+
+    def test_valid_num_partitions_none(self):
+        """Test that num_partitions=None is valid (auto-determine)."""
+        config = FitConfig(num_partitions=None)
+        assert config.num_partitions is None
+
+
+class TestPlotConfigValidation:
+    """Tests for PlotConfig validation errors."""
+
+    def test_invalid_figsize_length(self):
+        """Test that figsize with wrong length raises ValueError."""
+        with pytest.raises(ValueError, match="figsize must be"):
+            PlotConfig(figsize=(12,))
+
+    def test_invalid_figsize_zero_width(self):
+        """Test that figsize with zero width raises ValueError."""
+        with pytest.raises(ValueError, match="figsize dimensions must be positive"):
+            PlotConfig(figsize=(0, 8))
+
+    def test_invalid_figsize_zero_height(self):
+        """Test that figsize with zero height raises ValueError."""
+        with pytest.raises(ValueError, match="figsize dimensions must be positive"):
+            PlotConfig(figsize=(12, 0))
+
+    def test_invalid_figsize_negative(self):
+        """Test that figsize with negative dimensions raises ValueError."""
+        with pytest.raises(ValueError, match="figsize dimensions must be positive"):
+            PlotConfig(figsize=(-12, 8))
+
+    def test_invalid_dpi_zero(self):
+        """Test that dpi=0 raises ValueError."""
+        with pytest.raises(ValueError, match="dpi must be positive"):
+            PlotConfig(dpi=0)
+
+    def test_invalid_dpi_negative(self):
+        """Test that negative dpi raises ValueError."""
+        with pytest.raises(ValueError, match="dpi must be positive"):
+            PlotConfig(dpi=-100)
+
+    def test_invalid_histogram_alpha_negative(self):
+        """Test that negative histogram_alpha raises ValueError."""
+        with pytest.raises(ValueError, match="histogram_alpha must be in"):
+            PlotConfig(histogram_alpha=-0.1)
+
+    def test_invalid_histogram_alpha_over_one(self):
+        """Test that histogram_alpha > 1 raises ValueError."""
+        with pytest.raises(ValueError, match="histogram_alpha must be in"):
+            PlotConfig(histogram_alpha=1.5)
+
+    def test_valid_histogram_alpha_bounds(self):
+        """Test that histogram_alpha at boundaries is valid."""
+        config_zero = PlotConfig(histogram_alpha=0.0)
+        config_one = PlotConfig(histogram_alpha=1.0)
+        assert config_zero.histogram_alpha == 0.0
+        assert config_one.histogram_alpha == 1.0
+
+    def test_invalid_grid_alpha_negative(self):
+        """Test that negative grid_alpha raises ValueError."""
+        with pytest.raises(ValueError, match="grid_alpha must be in"):
+            PlotConfig(grid_alpha=-0.1)
+
+    def test_invalid_grid_alpha_over_one(self):
+        """Test that grid_alpha > 1 raises ValueError."""
+        with pytest.raises(ValueError, match="grid_alpha must be in"):
+            PlotConfig(grid_alpha=1.5)
+
+    def test_invalid_pdf_linewidth_zero(self):
+        """Test that pdf_linewidth=0 raises ValueError."""
+        with pytest.raises(ValueError, match="pdf_linewidth must be positive"):
+            PlotConfig(pdf_linewidth=0)
+
+    def test_invalid_pdf_linewidth_negative(self):
+        """Test that negative pdf_linewidth raises ValueError."""
+        with pytest.raises(ValueError, match="pdf_linewidth must be positive"):
+            PlotConfig(pdf_linewidth=-1)
+
+    def test_invalid_title_fontsize_zero(self):
+        """Test that title_fontsize=0 raises ValueError."""
+        with pytest.raises(ValueError, match="title_fontsize must be positive"):
+            PlotConfig(title_fontsize=0)
+
+    def test_invalid_label_fontsize_zero(self):
+        """Test that label_fontsize=0 raises ValueError."""
+        with pytest.raises(ValueError, match="label_fontsize must be positive"):
+            PlotConfig(label_fontsize=0)
+
+    def test_invalid_legend_fontsize_zero(self):
+        """Test that legend_fontsize=0 raises ValueError."""
+        with pytest.raises(ValueError, match="legend_fontsize must be positive"):
+            PlotConfig(legend_fontsize=0)
+
+    def test_invalid_save_format(self):
+        """Test that invalid save_format raises ValueError."""
+        with pytest.raises(ValueError, match="save_format must be one of"):
+            PlotConfig(save_format="bmp")
+
+    def test_valid_save_formats(self):
+        """Test that all valid save formats are accepted."""
+        valid_formats = ["png", "pdf", "svg", "jpg", "jpeg"]
+        for fmt in valid_formats:
+            config = PlotConfig(save_format=fmt)
+            assert config.save_format == fmt
+
+    def test_save_format_case_insensitive(self):
+        """Test that save_format validation is case insensitive."""
+        config = PlotConfig(save_format="PNG")
+        assert config.save_format == "PNG"
