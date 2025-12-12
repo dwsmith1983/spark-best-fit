@@ -148,3 +148,6 @@ Thumbs.db
 
 # Hatch
 .hatch/
+
+# Claude Code
+.claude/
