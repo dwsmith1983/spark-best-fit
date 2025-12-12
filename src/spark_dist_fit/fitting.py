@@ -1,13 +1,15 @@
 """Distribution fitting using Pandas UDFs for efficient parallel processing."""
 
 import warnings
-from typing import Any, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
 import scipy.stats as st
+from pyspark import Broadcast
 from pyspark.sql.functions import pandas_udf
 from pyspark.sql.types import ArrayType, FloatType, StringType, StructField, StructType
+from scipy.stats import rv_continuous
 
 # Constant for fitting sample size
 FITTING_SAMPLE_SIZE: int = 10_000  # Most scipy distributions fit well with 10k samples
@@ -25,7 +27,10 @@ FIT_RESULT_SCHEMA = StructType(
 )
 
 
-def create_fitting_udf(histogram_broadcast: Any, data_sample_broadcast: Any):
+def create_fitting_udf(
+    histogram_broadcast: Broadcast[Tuple[np.ndarray, np.ndarray]],
+    data_sample_broadcast: Broadcast[np.ndarray],
+) -> Callable[[pd.Series], pd.DataFrame]:
     """Factory function to create Pandas UDF with broadcasted data.
 
     This is the KEY optimization: The histogram and data sample are
@@ -163,7 +168,7 @@ def _failed_fit_result(dist_name: str) -> Dict[str, Any]:
     }
 
 
-def evaluate_pdf(dist: Any, params: Tuple[float, ...], x: np.ndarray) -> np.ndarray:
+def evaluate_pdf(dist: rv_continuous, params: Tuple[float, ...], x: np.ndarray) -> np.ndarray:
     """Evaluate probability density function at given points.
 
     Args:
@@ -188,7 +193,9 @@ def evaluate_pdf(dist: Any, params: Tuple[float, ...], x: np.ndarray) -> np.ndar
     return pdf
 
 
-def compute_information_criteria(dist: Any, params: Tuple[float, ...], data: np.ndarray) -> Tuple[float, float]:
+def compute_information_criteria(
+    dist: rv_continuous, params: Tuple[float, ...], data: np.ndarray
+) -> Tuple[float, float]:
     """Compute AIC and BIC information criteria.
 
     These criteria help compare model complexity vs fit quality.
@@ -283,7 +290,7 @@ def extract_distribution_params(params: List[float]) -> Tuple[Tuple[float, ...],
 
 
 def compute_pdf_range(
-    dist: Any,
+    dist: rv_continuous,
     params: List[float],
     x_hist: np.ndarray,
     percentile: float = 0.01,
