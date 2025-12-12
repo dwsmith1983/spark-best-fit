@@ -15,6 +15,7 @@ jobs:
       - uses: pre-commit/action@v3.0.1
 
   test:
+    needs: pre-commit
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
