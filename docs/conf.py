@@ -24,7 +24,10 @@ templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 html_theme = "sphinx_rtd_theme"
-html_static_path = ["_static"]
+
+# Suppress warnings for duplicate dataclass attribute descriptions
+# This happens because dataclass fields are documented both as class attributes and instance attributes
+suppress_warnings = ["ref.python"]
 
 autodoc_default_options = {
     "members": True,
