@@ -4,11 +4,56 @@
 This script checks:
 1. Syntax is valid (AST parses)
 2. All imports from spark_dist_fit resolve to actual exports
+
+Note: This uses AST parsing instead of importing to avoid requiring pyspark.
 """
 
 import ast
 import sys
 from pathlib import Path
+
+# Root of the package
+PACKAGE_ROOT = Path(__file__).parent.parent / "src" / "spark_dist_fit"
+
+
+def get_package_exports() -> set[str]:
+    """Get all public exports from spark_dist_fit/__init__.py using AST.
+
+    Parses the __init__.py to find:
+    - Names in __all__ if defined
+    - Otherwise, all imported names from 'from x import y' statements
+    """
+    init_file = PACKAGE_ROOT / "__init__.py"
+
+    with open(init_file) as f:
+        source = f.read()
+
+    tree = ast.parse(source)
+    exports = set()
+
+    # First, look for __all__
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "__all__":
+                    if isinstance(node.value, ast.List):
+                        for elt in node.value.elts:
+                            if isinstance(elt, ast.Constant):
+                                exports.add(elt.value)
+
+    # If __all__ found, use it
+    if exports:
+        return exports
+
+    # Otherwise, collect all imported names
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                name = alias.asname if alias.asname else alias.name
+                if not name.startswith("_"):
+                    exports.add(name)
+
+    return exports
 
 
 def get_spark_dist_fit_imports(filepath: Path) -> list[tuple[str, int]]:
@@ -39,18 +84,13 @@ def get_spark_dist_fit_imports(filepath: Path) -> list[tuple[str, int]]:
     return imports
 
 
-def validate_imports(imports: list[tuple[str, int]], filepath: Path) -> bool:
+def validate_imports(imports: list[tuple[str, int]], filepath: Path, public_exports: set[str]) -> bool:
     """Validate that all imports exist in spark_dist_fit."""
-    import spark_dist_fit
-
-    # Get all public exports
-    public_exports = set(dir(spark_dist_fit))
-
     valid = True
     for name, lineno in imports:
         if name not in public_exports:
             print(f"FAIL: {filepath}:{lineno} - '{name}' not found in spark_dist_fit")
-            print(f"      Available exports: {sorted(e for e in public_exports if not e.startswith('_'))}")
+            print(f"      Available exports: {sorted(public_exports)}")
             valid = False
 
     return valid
@@ -64,7 +104,11 @@ def main():
         print(f"No Python files found in {examples_dir}")
         sys.exit(1)
 
-    print(f"Validating {len(py_files)} example files...")
+    # Get package exports once (using AST, no pyspark needed)
+    public_exports = get_package_exports()
+    print(f"Package exports: {sorted(public_exports)}")
+    print(f"\nValidating {len(py_files)} example files...")
+
     all_valid = True
 
     for filepath in py_files:
@@ -80,7 +124,7 @@ def main():
         print(f"  Found imports: {[name for name, _ in imports]}")
 
         # Validate imports exist
-        if not validate_imports(imports, filepath):
+        if not validate_imports(imports, filepath, public_exports):
             all_valid = False
         else:
             print("  OK - all imports valid")
