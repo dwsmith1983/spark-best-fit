@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.5.0 (2025-12-13)
+
+### Features
+
+- Add DistributionFitter.from_config() and update documentation
+  ([#14](https://github.com/dwsmith1983/spark-best-fit/pull/14),
+  [`dc505a4`](https://github.com/dwsmith1983/spark-best-fit/commit/dc505a469328f8299ee83526daafbf60b6327a8b))
+
+
 ## v1.4.3 (2025-12-12)
 
 ### Bug Fixes
