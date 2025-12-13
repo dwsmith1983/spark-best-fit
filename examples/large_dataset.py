@@ -1,4 +1,40 @@
-"""Example demonstrating performance with large datasets."""
+"""Example demonstrating performance with large datasets.
+
+Memory Usage Patterns
+=====================
+
+spark-dist-fit is designed to minimize memory usage on the driver node:
+
+1. **Histogram Computation** (~1KB per column):
+   - Only histogram bin counts are collected to driver
+   - For 100 bins: ~800 bytes (100 floats × 8 bytes)
+   - Raw data stays distributed in Spark executors
+
+2. **Fitting Sample** (~80KB-800KB):
+   - A small sample (default 10,000 rows) is collected for scipy fitting
+   - 10,000 rows × 8 bytes = ~80KB
+   - This is configurable via FITTING_SAMPLE_SIZE constant
+
+3. **Broadcast Variables** (~1KB):
+   - Histogram and sample are broadcast to executors
+   - Overhead is minimal as data is already small
+
+4. **Results DataFrame**:
+   - ~100 distributions × ~50 bytes each = ~5KB
+   - Kept as Spark DataFrame until explicitly collected
+
+Memory Comparison (100M row dataset):
+-------------------------------------
+- Traditional approach (collect all): ~800MB on driver
+- spark-dist-fit approach: ~1MB on driver (1000x reduction)
+
+For very large datasets (>100M rows), enable sampling to reduce executor memory:
+    config = FitConfig(
+        enable_sampling=True,
+        sample_threshold=10_000_000,  # Sample when > 10M rows
+        max_sample_size=1_000_000,    # Sample down to 1M rows
+    )
+"""
 
 import time
 
