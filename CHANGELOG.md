@@ -2,6 +2,26 @@
 
 <!-- version list -->
 
+## v2.0.0 (2025-12-13)
+
+### Bug Fixes
+
+- Use AST parsing instead of import to avoid pyspark dependency
+  ([#18](https://github.com/dwsmith1983/spark-best-fit/pull/18),
+  [`8fc2fdf`](https://github.com/dwsmith1983/spark-best-fit/commit/8fc2fdf8da6fc5e04639e227a6c78d19d7f602bc))
+
+### Refactoring
+
+- Simplify API by removing configuration classes
+  ([#18](https://github.com/dwsmith1983/spark-best-fit/pull/18),
+  [`8fc2fdf`](https://github.com/dwsmith1983/spark-best-fit/commit/8fc2fdf8da6fc5e04639e227a6c78d19d7f602bc))
+
+### Breaking Changes
+
+- Remove FitConfig, PlotConfig, and HOCON configuration system. All parameters are now passed
+  directly to methods.
+
+
 ## v1.5.0 (2025-12-13)
 
 ### Features
