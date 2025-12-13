@@ -793,3 +793,55 @@ class TestPlotConfigValidation:
         """Test that save_format validation is case insensitive."""
         config = PlotConfig(save_format="PNG")
         assert config.save_format == "PNG"
+
+
+class TestConfigIntegration:
+    """Integration tests for loading real config files."""
+
+    def test_load_example_conf(self):
+        """Test loading the actual config/example.conf file end-to-end."""
+        config_path = Path(__file__).parent.parent / "config" / "example.conf"
+
+        # Load the full AppConfig
+        config = AppConfig.from_file(config_path)
+
+        # Verify spark config loaded correctly
+        assert config.spark.app_name == "spark-dist-fit"
+        assert config.spark.arrow_enabled is True
+        assert config.spark.adaptive_enabled is True
+
+        # Verify fit config loaded correctly
+        assert config.fit.bins == 100
+        assert config.fit.use_rice_rule is False
+        assert config.fit.support_at_zero is False
+        assert config.fit.enable_sampling is True
+        assert config.fit.max_sample_size == 1000000
+        assert config.fit.max_sample_fraction == 0.35
+        assert config.fit.sample_threshold == 10000000
+        assert config.fit.random_seed == 42
+
+        # Verify excluded distributions
+        assert "levy_stable" in config.fit.excluded_distributions
+        assert "kappa4" in config.fit.excluded_distributions
+
+        # Verify plot config loaded correctly
+        assert config.plot.figsize == (12, 8)
+        assert config.plot.dpi == 600
+        assert config.plot.show_histogram is True
+        assert config.plot.histogram_alpha == 0.5
+        assert config.plot.pdf_linewidth == 2
+        assert config.plot.save_format == "png"
+
+    def test_example_conf_configs_are_valid(self):
+        """Test that configs from example.conf can be used to create objects."""
+        config_path = Path(__file__).parent.parent / "config" / "example.conf"
+        config = AppConfig.from_file(config_path)
+
+        # Verify SparkConfig can generate spark config dict
+        spark_settings = config.spark.to_spark_config()
+        assert isinstance(spark_settings, dict)
+        assert "spark.sql.execution.arrow.pyspark.enabled" in spark_settings
+
+        # Verify configs are frozen/immutable
+        with pytest.raises(FrozenInstanceError):
+            config.fit.bins = 200

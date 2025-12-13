@@ -110,17 +110,36 @@ for xi, pdf in zip(x, pdf_values):
     print(f"  f({xi}) = {pdf:.6f}")
 
 # ============================================================================
-# Example 6: Loading configuration from file
+# Example 6: Loading configuration from file (nested HOCON)
 # ============================================================================
 print("\n6. Loading configuration from HOCON file")
 print("-" * 80)
 
+from spark_dist_fit import AppConfig
+
 try:
-    config_from_file = FitConfig.from_file("../config/example.conf")
+    # For nested configs (fit{}, plot{}, spark{}), use AppConfig
+    app_config = AppConfig.from_file("../config/example.conf")
     print("Configuration loaded successfully!")
-    print(f"  Bins: {config_from_file.bins}")
-    print(f"  Sampling enabled: {config_from_file.enable_sampling}")
-    print(f"  Excluded distributions: {len(config_from_file.excluded_distributions)}")
+    print(f"  Fit bins: {app_config.fit.bins}")
+    print(f"  Sampling enabled: {app_config.fit.enable_sampling}")
+    print(f"  Plot DPI: {app_config.plot.dpi}")
+    print(f"  Spark app name: {app_config.spark.app_name}")
+except FileNotFoundError:
+    print("Config file not found (run from examples/ directory)")
+
+# ============================================================================
+# Example 7: Using DistributionFitter.from_config() convenience method
+# ============================================================================
+print("\n7. Using DistributionFitter.from_config()")
+print("-" * 80)
+
+try:
+    # One-liner to create fitter from config file
+    fitter_from_config = DistributionFitter.from_config("../config/example.conf")
+    print("Fitter created from config!")
+    print(f"  Fit config bins: {fitter_from_config.config.bins}")
+    print(f"  Plot config available: {fitter_from_config.plot_config is not None}")
 except FileNotFoundError:
     print("Config file not found (run from examples/ directory)")
 

@@ -120,19 +120,18 @@ Load and use the configuration:
 
 .. code-block:: python
 
-   from spark_dist_fit import DistributionFitter, FitConfig, PlotConfig
+   from spark_dist_fit import AppConfig, DistributionFitter
 
-   # Load configs from HOCON file
-   fit_config = FitConfig.from_file("config/app.conf")
-   plot_config = PlotConfig.from_file("config/app.conf")
+   # Load configs from HOCON file (nested structure requires AppConfig)
+   config = AppConfig.from_file("config/app.conf")
 
    # Use in fitter
-   fitter = DistributionFitter(config=fit_config)
+   fitter = DistributionFitter(config=config.fit)
    results = fitter.fit(df, column="value")
 
    # Plot with config
    best = results.best(n=1)[0]
-   fitter.plot(best, df, column, config=plot_config)
+   fitter.plot(best, df, "value", config=config.plot)
 
 HOCON also supports environment variable substitution:
 

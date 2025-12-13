@@ -51,15 +51,14 @@ class SparkConfig(ConfigLoadMixin):
 
     These settings are applied to the Spark session when using DistributionFitter.
 
-    Example HOCON config:
-        ```
+    Example HOCON config::
+
         spark {
             app_name = "spark-dist-fit"
             arrow_enabled = true
             adaptive_enabled = true
             adaptive_coalesce_enabled = true
         }
-        ```
 
     Attributes:
         app_name: Spark application name
@@ -98,11 +97,11 @@ DEFAULT_EXCLUDED_DISTRIBUTIONS: Tuple[str, ...] = tuple(DistributionRegistry.DEF
 class FitConfig(ConfigLoadMixin):
     """Configuration for distribution fitting.
 
-    Can be loaded from HOCON, YAML, or JSON files using FitConfig.from_file(),
+    Can be loaded from HOCON, YAML, or JSON files using ``FitConfig.from_file()``,
     or created programmatically. This is an immutable (frozen) dataclass.
 
-    Example HOCON config:
-        ```
+    Example HOCON config::
+
         fit {
             bins = 100
             support_at_zero = true
@@ -113,10 +112,9 @@ class FitConfig(ConfigLoadMixin):
                 max_sample_size = 1000000
             }
         }
-        ```
 
-    To customize excluded distributions (e.g., to include a slow distribution):
-        ```python
+    To customize excluded distributions (e.g., to include a slow distribution)::
+
         from spark_dist_fit import FitConfig, DEFAULT_EXCLUDED_DISTRIBUTIONS
 
         # Remove a specific distribution from exclusions
@@ -128,7 +126,6 @@ class FitConfig(ConfigLoadMixin):
 
         # Or no exclusions (warning: fitting may hang on slow distributions)
         config = FitConfig(excluded_distributions=())
-        ```
 
     Attributes:
         bins: Number of histogram bins or array of bin edges
@@ -193,11 +190,11 @@ class FitConfig(ConfigLoadMixin):
 class PlotConfig(ConfigLoadMixin):
     """Configuration for plotting fitted distributions.
 
-    Can be loaded from HOCON, YAML, or JSON files using PlotConfig.from_file(),
+    Can be loaded from HOCON, YAML, or JSON files using ``PlotConfig.from_file()``,
     or created programmatically. This is an immutable (frozen) dataclass.
 
-    Example HOCON config:
-        ```
+    Example HOCON config::
+
         plot {
             figsize = [12, 8]
             dpi = 600
@@ -205,7 +202,6 @@ class PlotConfig(ConfigLoadMixin):
             histogram_alpha = 0.5
             pdf_linewidth = 2
         }
-        ```
 
     Attributes:
         figsize: Figure size as (width, height) tuple
@@ -274,8 +270,8 @@ class AppConfig(ConfigLoadMixin):
     This is the recommended way to load configuration from a file that
     contains spark{}, fit{}, and plot{} sections.
 
-    Example HOCON config:
-        ```
+    Example HOCON config::
+
         spark {
             app_name = "my-app"
             arrow_enabled = true
@@ -288,12 +284,12 @@ class AppConfig(ConfigLoadMixin):
             figsize = [16, 10]
             dpi = 300
         }
-        ```
 
-    Usage:
-        >>> config = AppConfig.from_file("config/app.conf")
-        >>> fitter = DistributionFitter(config=config.fit, spark_config=config.spark)
-        >>> fitter.plot(result, df, "value", config=config.plot)
+    Usage::
+
+        config = AppConfig.from_file("config/app.conf")
+        fitter = DistributionFitter(config=config.fit, spark_config=config.spark)
+        fitter.plot(result, df, "value", config=config.plot)
 
     Attributes:
         spark: Spark session configuration

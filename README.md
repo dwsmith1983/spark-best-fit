@@ -140,19 +140,18 @@ plot {
 
 **Load and use:**
 ```python
-from spark_dist_fit import DistributionFitter, FitConfig, PlotConfig
+from spark_dist_fit import AppConfig, DistributionFitter
 
-# Load configs from HOCON file
-fit_config = FitConfig.from_file("config/my_config.conf")
-plot_config = PlotConfig.from_file("config/my_config.conf")
+# Load configs from HOCON file (nested structure requires AppConfig)
+config = AppConfig.from_file("config/my_config.conf")
 
 # Use in fitter
-fitter = DistributionFitter(config=fit_config)
+fitter = DistributionFitter(config=config.fit)
 results = fitter.fit(df, column="value")
 
 # Plot with config
 best = results.best(n=1)[0]
-fitter.plot(best, df, column, config=plot_config)
+fitter.plot(best, df, "value", config=config.plot)
 ```
 
 HOCON supports includes, substitutions, and environment variables:
@@ -167,6 +166,20 @@ fit {
     # Override from base
     bins = 200
 }
+```
+
+### One-Line Config Loading
+
+For convenience, create a fully-configured fitter directly from a config file:
+
+```python
+# Load fitter with all configs in one line
+fitter = DistributionFitter.from_config("config/my_config.conf")
+
+# Fit and plot using loaded configs
+results = fitter.fit(df, column="value")
+best = results.best(n=1)[0]
+fitter.plot(best, df, "value", config=fitter.plot_config)  # plot_config auto-loaded
 ```
 
 ### Working with Results
@@ -236,6 +249,7 @@ fitter.plot(
 | `enable_sampling` | bool | True | Enable sampling for large datasets |
 | `sample_fraction` | float | None | Fraction to sample (None = auto) |
 | `max_sample_size` | int | 1,000,000 | Max rows to sample |
+| `max_sample_fraction` | float | 0.35 | Max auto-determined sample fraction |
 | `sample_threshold` | int | 10,000,000 | Row count above which to sample |
 | `num_partitions` | int | None | Spark partitions (None = auto) |
 | `random_seed` | int | 42 | Random seed |

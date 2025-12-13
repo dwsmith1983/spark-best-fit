@@ -486,3 +486,63 @@ class TestCoreNegativePaths:
         # Plot with different dataset should work
         fig, ax = fitter.plot(best, df=df2, column="value")
         assert fig is not None
+
+
+class TestDistributionFitterFromConfig:
+    """Tests for DistributionFitter.from_config class method."""
+
+    def test_from_config_loads_correctly(self, spark_session, tmp_path):
+        """Test that from_config creates a properly configured fitter."""
+        # Create a simple config file without extra_config (which can't be modified at runtime)
+        config_content = """
+        spark {
+            app_name = "test-app"
+            arrow_enabled = true
+        }
+        fit {
+            bins = 100
+            use_rice_rule = false
+            enable_sampling = true
+        }
+        plot {
+            dpi = 600
+            figsize = [12, 8]
+        }
+        """
+        config_path = tmp_path / "test_config.conf"
+        config_path.write_text(config_content)
+
+        fitter = DistributionFitter.from_config(str(config_path), spark=spark_session)
+
+        # Verify fit config was loaded
+        assert fitter.config.bins == 100
+        assert fitter.config.use_rice_rule is False
+        assert fitter.config.enable_sampling is True
+
+        # Verify plot config is accessible
+        assert hasattr(fitter, "plot_config")
+        assert fitter.plot_config.dpi == 600
+        assert fitter.plot_config.figsize == (12, 8)
+
+    def test_from_config_can_fit(self, spark_session, small_dataset, tmp_path):
+        """Test that fitter from config can perform fitting."""
+        config_content = """
+        spark {
+            app_name = "test-fit"
+        }
+        fit {
+            bins = 50
+        }
+        plot {
+            dpi = 100
+        }
+        """
+        config_path = tmp_path / "fit_config.conf"
+        config_path.write_text(config_content)
+
+        fitter = DistributionFitter.from_config(str(config_path), spark=spark_session)
+        results = fitter.fit(small_dataset, column="value", max_distributions=3)
+
+        assert results.count() > 0
+        best = results.best(n=1)[0]
+        assert best.distribution is not None

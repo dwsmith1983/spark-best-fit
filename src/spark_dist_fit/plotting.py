@@ -50,11 +50,11 @@ def plot_distribution(
         >>> best = results.best(n=1)[0]
         >>>
         >>> # Plot with defaults
-        >>> fitter.plot(best)
+        >>> fitter.plot(best, df, 'value')
         >>>
         >>> # Custom plot config
         >>> plot_config = PlotConfig(figsize=(16, 10), dpi=300)
-        >>> fitter.plot(best, config=plot_config, title='Distribution Fit')
+        >>> fitter.plot(best, df, 'value', config=plot_config, title='Distribution Fit')
     """
     # Get scipy distribution and parameters
     dist = getattr(st, result.distribution)

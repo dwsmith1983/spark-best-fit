@@ -70,6 +70,48 @@ class DistributionFitter(SparkSessionWrapper):
         self.config: FitConfig = config or FitConfig()
         self.registry: DistributionRegistry = distribution_registry or DistributionRegistry()
         self.histogram_computer: HistogramComputer = HistogramComputer()
+        self.plot_config: Optional[PlotConfig] = None  # Set by from_config()
+
+    @classmethod
+    def from_config(
+        cls,
+        config_path: str,
+        spark: Optional[SparkSession] = None,
+    ) -> "DistributionFitter":
+        """Create a DistributionFitter from a HOCON/YAML/JSON config file.
+
+        Convenience method that loads AppConfig from a file and creates
+        a DistributionFitter with the fit and spark configurations.
+
+        Args:
+            config_path: Path to configuration file with spark{}, fit{}, plot{} sections
+            spark: Optional Spark session. If None, creates one using SparkConfig from file.
+
+        Returns:
+            DistributionFitter instance configured from file
+
+        Example:
+            >>> # Load fitter from config file
+            >>> fitter = DistributionFitter.from_config("config/app.conf")
+            >>> results = fitter.fit(df, "value")
+            >>>
+            >>> # Plot using the config's plot settings
+            >>> best = results.best(n=1)[0]
+            >>> fitter.plot(best, df, "value", config=fitter.plot_config)
+        """
+        from spark_dist_fit.config import AppConfig
+
+        app_config = AppConfig.from_file(config_path)
+
+        fitter = cls(
+            spark=spark,
+            config=app_config.fit,
+            spark_config=app_config.spark,
+        )
+        # Store plot config for convenient access
+        fitter.plot_config = app_config.plot
+
+        return fitter
 
     def fit(
         self,
