@@ -71,78 +71,12 @@ class TestSparkSessionWrapper:
 
 
 class TestSparkConfigApplication:
-    """Tests for SparkConfig application to Spark session."""
+    """Tests for SparkConfig application to Spark session.
 
-    def test_apply_spark_config_arrow_enabled(self, spark_session):
-        """Test that arrow config is applied to session."""
-        config = SparkConfig(arrow_enabled=True)
-        wrapper = ConcreteSparkWrapper(spark_session, spark_config=config)
-
-        # Verify config was applied
-        arrow_setting = wrapper.spark.conf.get("spark.sql.execution.arrow.pyspark.enabled")
-        assert arrow_setting == "true"
-
-    def test_apply_spark_config_arrow_disabled(self, spark_session):
-        """Test that arrow can be disabled."""
-        config = SparkConfig(arrow_enabled=False)
-        wrapper = ConcreteSparkWrapper(spark_session, spark_config=config)
-
-        arrow_setting = wrapper.spark.conf.get("spark.sql.execution.arrow.pyspark.enabled")
-        assert arrow_setting == "false"
-
-    def test_apply_spark_config_adaptive_enabled(self, spark_session):
-        """Test that adaptive query execution config is applied."""
-        config = SparkConfig(adaptive_enabled=True)
-        wrapper = ConcreteSparkWrapper(spark_session, spark_config=config)
-
-        adaptive_setting = wrapper.spark.conf.get("spark.sql.adaptive.enabled")
-        assert adaptive_setting == "true"
-
-    def test_apply_spark_config_adaptive_disabled(self, spark_session):
-        """Test that adaptive query execution can be disabled."""
-        config = SparkConfig(adaptive_enabled=False)
-        wrapper = ConcreteSparkWrapper(spark_session, spark_config=config)
-
-        adaptive_setting = wrapper.spark.conf.get("spark.sql.adaptive.enabled")
-        assert adaptive_setting == "false"
-
-    def test_apply_spark_config_coalesce_enabled(self, spark_session):
-        """Test that coalesce partitions config is applied."""
-        config = SparkConfig(adaptive_coalesce_enabled=True)
-        wrapper = ConcreteSparkWrapper(spark_session, spark_config=config)
-
-        coalesce_setting = wrapper.spark.conf.get("spark.sql.adaptive.coalescePartitions.enabled")
-        assert coalesce_setting == "true"
-
-    def test_apply_spark_config_coalesce_disabled(self, spark_session):
-        """Test that coalesce partitions can be disabled."""
-        config = SparkConfig(adaptive_coalesce_enabled=False)
-        wrapper = ConcreteSparkWrapper(spark_session, spark_config=config)
-
-        coalesce_setting = wrapper.spark.conf.get("spark.sql.adaptive.coalescePartitions.enabled")
-        assert coalesce_setting == "false"
-
-    def test_apply_spark_config_all_settings(self, spark_session):
-        """Test applying all config settings at once."""
-        config = SparkConfig(
-            arrow_enabled=False,
-            adaptive_enabled=False,
-            adaptive_coalesce_enabled=False,
-        )
-        wrapper = ConcreteSparkWrapper(spark_session, spark_config=config)
-
-        assert wrapper.spark.conf.get("spark.sql.execution.arrow.pyspark.enabled") == "false"
-        assert wrapper.spark.conf.get("spark.sql.adaptive.enabled") == "false"
-        assert wrapper.spark.conf.get("spark.sql.adaptive.coalescePartitions.enabled") == "false"
-
-    def test_default_config_applied(self, spark_session):
-        """Test that default SparkConfig is applied when none provided."""
-        wrapper = ConcreteSparkWrapper(spark_session)
-
-        # Default config has all settings enabled
-        assert wrapper.spark.conf.get("spark.sql.execution.arrow.pyspark.enabled") == "true"
-        assert wrapper.spark.conf.get("spark.sql.adaptive.enabled") == "true"
-        assert wrapper.spark.conf.get("spark.sql.adaptive.coalescePartitions.enabled") == "true"
+    SparkConfig is only applied when creating a NEW session.
+    When an existing session is provided or active, it is used as-is
+    (Spark configs are immutable after session creation).
+    """
 
     def test_spark_config_stored(self, spark_session):
         """Test that spark_config is stored on the wrapper."""
@@ -152,17 +86,59 @@ class TestSparkConfigApplication:
         assert wrapper._spark_config == config
         assert wrapper._spark_config.app_name == "test-app"
 
-    def test_config_applied_to_existing_session(self, spark_session):
-        """Test that config is applied to an existing session."""
-        # First set a different value
-        spark_session.conf.set("spark.sql.execution.arrow.pyspark.enabled", "false")
+    def test_config_stored_but_not_applied(self, spark_session):
+        """Test that config is stored but NOT applied to an existing session.
 
-        # Now create wrapper with config that should override
-        config = SparkConfig(arrow_enabled=True)
+        SparkConfig settings can only be set at session creation time.
+        When using an existing session, the config is stored for reference
+        but not applied to the session.
+        """
+        config = SparkConfig(
+            app_name="custom-app",
+            arrow_enabled=False,
+            adaptive_enabled=False,
+        )
         wrapper = ConcreteSparkWrapper(spark_session, spark_config=config)
 
-        # Should be overridden to true
-        assert wrapper.spark.conf.get("spark.sql.execution.arrow.pyspark.enabled") == "true"
+        # Config should be stored
+        assert wrapper._spark_config == config
+        assert wrapper._spark_config.app_name == "custom-app"
+        assert wrapper._spark_config.arrow_enabled is False
+
+        # Session should be the same instance (not modified)
+        assert wrapper.spark is spark_session
+
+    def test_wrapper_uses_provided_session_directly(self, spark_session):
+        """Test that wrapper uses provided session without creating new one."""
+        config = SparkConfig(app_name="different-app")
+        wrapper = ConcreteSparkWrapper(spark_session, spark_config=config)
+
+        # Should use exact same session instance
+        assert wrapper.spark is spark_session
+        assert wrapper._spark is spark_session
+
+    def test_to_spark_config_returns_correct_values(self):
+        """Test that to_spark_config returns correct dictionary values."""
+        config = SparkConfig(
+            arrow_enabled=False,
+            adaptive_enabled=False,
+            adaptive_coalesce_enabled=False,
+        )
+        spark_dict = config.to_spark_config()
+
+        assert spark_dict["spark.sql.execution.arrow.pyspark.enabled"] == "false"
+        assert spark_dict["spark.sql.adaptive.enabled"] == "false"
+        assert spark_dict["spark.sql.adaptive.coalescePartitions.enabled"] == "false"
+
+    def test_default_config_values(self):
+        """Test that default SparkConfig has expected values."""
+        config = SparkConfig()
+        spark_dict = config.to_spark_config()
+
+        # Default config has all settings enabled
+        assert spark_dict["spark.sql.execution.arrow.pyspark.enabled"] == "true"
+        assert spark_dict["spark.sql.adaptive.enabled"] == "true"
+        assert spark_dict["spark.sql.adaptive.coalescePartitions.enabled"] == "true"
 
 
 class TestSparkSessionCreation:
