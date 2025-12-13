@@ -6,18 +6,45 @@ Core
 
 .. automodule:: spark_dist_fit.core
    :members:
+   :exclude-members: plot_config
 
 Configuration
 -------------
 
-.. automodule:: spark_dist_fit.config
+.. autoclass:: spark_dist_fit.config.FitConfig
+   :show-inheritance:
+   :no-index:
+
+.. autoclass:: spark_dist_fit.config.PlotConfig
+   :show-inheritance:
+   :no-index:
+
+.. autoclass:: spark_dist_fit.config.SparkConfig
+   :members: to_spark_config
+   :show-inheritance:
+   :no-index:
+
+.. autoclass:: spark_dist_fit.config.AppConfig
+   :show-inheritance:
+   :no-index:
+
+.. autoclass:: spark_dist_fit.config.ConfigLoadMixin
    :members:
+   :show-inheritance:
+
+.. autodata:: spark_dist_fit.config.DEFAULT_EXCLUDED_DISTRIBUTIONS
 
 Results
 -------
 
-.. automodule:: spark_dist_fit.results
+.. autoclass:: spark_dist_fit.results.DistributionFitResult
+   :members: sample, pdf, cdf
+   :show-inheritance:
+   :no-index:
+
+.. autoclass:: spark_dist_fit.results.FitResults
    :members:
+   :show-inheritance:
 
 Distributions
 -------------
