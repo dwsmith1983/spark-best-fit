@@ -3,48 +3,24 @@
 import numpy as np
 import pytest
 
-from spark_dist_fit import DistributionFitter, FitConfig
+from spark_dist_fit import DEFAULT_EXCLUDED_DISTRIBUTIONS, DistributionFitter
 from spark_dist_fit.distributions import DistributionRegistry
-
 
 class TestDistributionFitter:
     """Tests for DistributionFitter class."""
 
-    def test_initialization(self, spark_session):
-        """Test fitter initialization with defaults."""
-        fitter = DistributionFitter(spark_session)
+    @pytest.mark.parametrize("excluded,seed,expected_excluded,expected_seed", [
+        (None, 42, DEFAULT_EXCLUDED_DISTRIBUTIONS, 42),  # defaults
+        (("norm", "expon"), 123, ("norm", "expon"), 123),  # custom
+        ((), 42, (), 42),  # empty exclusions
+    ])
+    def test_initialization(self, spark_session, excluded, seed, expected_excluded, expected_seed):
+        """Test fitter initialization with various configurations."""
+        fitter = DistributionFitter(spark_session, excluded_distributions=excluded, random_seed=seed)
 
-        # Verify spark session is set correctly
-        assert fitter.spark == spark_session
         assert fitter.spark is spark_session
-
-        # Verify default config values are applied
-        assert fitter.config.bins == 50  # Default bins
-        assert fitter.config.use_rice_rule is True  # Default rice rule
-        assert fitter.config.support_at_zero is False  # Default support_at_zero
-        assert fitter.config.enable_sampling is True  # Default sampling
-
-        # Verify registry is functional
-        distributions = fitter.registry.get_distributions()
-        assert len(distributions) > 0
-        assert "norm" in distributions
-        assert "expon" in distributions
-
-    def test_initialization_with_custom_config(self, spark_session):
-        """Test fitter initialization with custom config."""
-        config = FitConfig(bins=100, support_at_zero=True)
-        fitter = DistributionFitter(spark_session, config=config)
-
-        assert fitter.config.bins == 100
-        assert fitter.config.support_at_zero is True
-
-    def test_initialization_with_custom_registry(self, spark_session):
-        """Test fitter initialization with custom registry."""
-        registry = DistributionRegistry(custom_exclusions={"norm", "expon"})
-        fitter = DistributionFitter(spark_session, distribution_registry=registry)
-
-        assert fitter.registry == registry
-        assert "norm" in fitter.registry.get_exclusions()
+        assert fitter.excluded_distributions == expected_excluded
+        assert fitter.random_seed == expected_seed
 
     def test_fit_basic(self, spark_session, small_dataset):
         """Test basic fitting operation."""
@@ -73,59 +49,61 @@ class TestDistributionFitter:
         top_3_names = [r.distribution for r in results.best(n=3)]
         assert "norm" in top_3_names or best.sse < 0.01
 
-    def test_fit_with_config_override(self, spark_session, small_dataset):
-        """Test fitting with config override."""
+    def test_fit_with_custom_bins(self, spark_session, small_dataset):
+        """Test fitting with custom number of bins."""
         fitter = DistributionFitter(spark_session)
+        results = fitter.fit(small_dataset, column="value", bins=25, max_distributions=5)
 
-        # Override config
-        config = FitConfig(bins=25, support_at_zero=False)
-        results = fitter.fit(small_dataset, column="value", config_override=config, max_distributions=5)
-
-        # Should complete successfully
         assert results.count() > 0
 
     def test_fit_support_at_zero(self, spark_session, positive_dataset):
         """Test fitting only non-negative distributions."""
-        config = FitConfig(support_at_zero=True)
-        fitter = DistributionFitter(spark_session, config=config)
-
-        results = fitter.fit(positive_dataset, column="value", max_distributions=5)
+        fitter = DistributionFitter(spark_session)
+        results = fitter.fit(positive_dataset, column="value", support_at_zero=True, max_distributions=5)
 
         # Should have fitted distributions
         assert results.count() > 0
 
         # All distributions should be non-negative
+        registry = DistributionRegistry()
         df_pandas = results.to_pandas()
         for dist_name in df_pandas["distribution"]:
-            dist = fitter.registry._has_support_at_zero(dist_name)
-            assert dist is True
+            assert registry._has_support_at_zero(dist_name) is True
 
-    def test_apply_sampling_no_sampling(self, spark_session, small_dataset):
-        """Test sampling application when sampling is disabled."""
-        config = FitConfig(enable_sampling=False)
-        fitter = DistributionFitter(spark_session, config=config)
+    def test_fit_with_sampling(self, spark_session, medium_dataset):
+        """Test fitting with sampling enabled."""
+        fitter = DistributionFitter(spark_session)
+        results = fitter.fit(
+            medium_dataset,
+            column="value",
+            enable_sampling=True,
+            sample_fraction=0.5,
+            sample_threshold=50_000,
+            max_distributions=5,
+        )
 
-        df_sampled = fitter._apply_sampling(small_dataset, config, 10_000)
+        assert results.count() > 0
 
-        # Should return original DataFrame
-        assert df_sampled.count() == small_dataset.count()
-
-    def test_apply_sampling_below_threshold(self, spark_session, small_dataset):
-        """Test sampling when row count is below threshold."""
-        config = FitConfig(enable_sampling=True, sample_threshold=100_000)
-        fitter = DistributionFitter(spark_session, config=config)
-
-        df_sampled = fitter._apply_sampling(small_dataset, config, 10_000)
-
-        # Should return original DataFrame (below threshold)
+    @pytest.mark.parametrize("enable,threshold,desc", [
+        (False, 10_000_000, "sampling disabled"),
+        (True, 100_000, "below threshold"),
+    ])
+    def test_apply_sampling_returns_original(self, spark_session, small_dataset, enable, threshold, desc):
+        """Test that original DataFrame is returned when sampling doesn't apply."""
+        fitter = DistributionFitter(spark_session)
+        df_sampled = fitter._apply_sampling(
+            small_dataset, row_count=10_000, enable_sampling=enable,
+            sample_fraction=None, max_sample_size=1_000_000, sample_threshold=threshold
+        )
         assert df_sampled.count() == small_dataset.count()
 
     def test_apply_sampling_with_fraction(self, spark_session, medium_dataset):
         """Test sampling with specified fraction."""
-        config = FitConfig(enable_sampling=True, sample_fraction=0.5, sample_threshold=50_000)
-        fitter = DistributionFitter(spark_session, config=config)
-
-        df_sampled = fitter._apply_sampling(medium_dataset, config, 100_000)
+        fitter = DistributionFitter(spark_session)
+        df_sampled = fitter._apply_sampling(
+            medium_dataset, row_count=100_000, enable_sampling=True,
+            sample_fraction=0.5, max_sample_size=1_000_000, sample_threshold=50_000
+        )
 
         # Should sample ~50% of data
         sampled_count = df_sampled.count()
@@ -133,10 +111,11 @@ class TestDistributionFitter:
 
     def test_apply_sampling_auto_fraction(self, spark_session, medium_dataset):
         """Test sampling with auto-determined fraction."""
-        config = FitConfig(enable_sampling=True, sample_fraction=None, max_sample_size=50_000, sample_threshold=50_000)
-        fitter = DistributionFitter(spark_session, config=config)
-
-        df_sampled = fitter._apply_sampling(medium_dataset, config, 100_000)
+        fitter = DistributionFitter(spark_session)
+        df_sampled = fitter._apply_sampling(
+            medium_dataset, row_count=100_000, enable_sampling=True,
+            sample_fraction=None, max_sample_size=50_000, sample_threshold=50_000
+        )
 
         # Should sample to max_sample_size
         sampled_count = df_sampled.count()
@@ -144,11 +123,10 @@ class TestDistributionFitter:
 
     def test_create_fitting_sample(self, spark_session, small_dataset):
         """Test creating sample for distribution fitting."""
-        config = FitConfig()
-        fitter = DistributionFitter(spark_session, config=config)
+        fitter = DistributionFitter(spark_session)
         row_count = small_dataset.count()
 
-        sample = fitter._create_fitting_sample(small_dataset, "value", config, row_count)
+        sample = fitter._create_fitting_sample(small_dataset, "value", row_count)
 
         # Should be numpy array
         assert isinstance(sample, np.ndarray)
@@ -156,27 +134,12 @@ class TestDistributionFitter:
         # Should be <= 10k (default sample size)
         assert len(sample) <= 10_000
 
-    def test_calculate_partitions(self, spark_session):
-        """Test partition calculation."""
+    @pytest.mark.parametrize("num_dists", [5, 100])
+    def test_calculate_partitions(self, spark_session, num_dists):
+        """Test partition calculation returns reasonable values."""
         fitter = DistributionFitter(spark_session)
-
-        # Test with 100 distributions
-        partitions = fitter._calculate_partitions(100)
-
-        # Should be reasonable number
-        assert partitions > 0
-        assert partitions <= 100
-
-    def test_calculate_partitions_few_distributions(self, spark_session):
-        """Test partition calculation with few distributions."""
-        fitter = DistributionFitter(spark_session)
-
-        # With only 5 distributions
-        partitions = fitter._calculate_partitions(5)
-
-        # Should not exceed num_distributions
-        assert partitions <= 5
-        assert partitions >= 1
+        partitions = fitter._calculate_partitions(num_dists)
+        assert 1 <= partitions <= num_dists
 
     def test_fit_caches_results(self, spark_session, small_dataset):
         """Test that fit results are cached and consistent."""
@@ -235,29 +198,16 @@ class TestDistributionFitter:
         # May have some results or none, but should not crash
         assert results.count() >= 0
 
-    def test_fit_with_custom_bins(self, spark_session, small_dataset):
-        """Test fitting with custom number of bins."""
-        config = FitConfig(bins=25)
-        fitter = DistributionFitter(spark_session, config=config)
-
-        results = fitter.fit(small_dataset, column="value", max_distributions=5)
-
-        assert results.count() > 0
-
     def test_fit_with_rice_rule(self, spark_session, small_dataset):
         """Test fitting with Rice rule for bins."""
-        config = FitConfig(use_rice_rule=True)
-        fitter = DistributionFitter(spark_session, config=config)
-
-        results = fitter.fit(small_dataset, column="value", max_distributions=5)
+        fitter = DistributionFitter(spark_session)
+        results = fitter.fit(small_dataset, column="value", use_rice_rule=True, max_distributions=5)
 
         assert results.count() > 0
 
     def test_fit_excluded_distributions(self, spark_session, small_dataset):
         """Test that excluded distributions are not fitted."""
-        config = FitConfig(excluded_distributions=["norm", "expon"])
-        fitter = DistributionFitter(spark_session, config=config)
-
+        fitter = DistributionFitter(spark_session, excluded_distributions=("norm", "expon"))
         results = fitter.fit(small_dataset, column="value", max_distributions=5)
 
         # norm and expon should not be in results
@@ -298,9 +248,8 @@ class TestDistributionFitter:
 
     def test_fit_reproducibility(self, spark_session, small_dataset):
         """Test that fitting is reproducible with same seed."""
-        config = FitConfig(random_seed=42)
-        fitter1 = DistributionFitter(spark_session, config=config)
-        fitter2 = DistributionFitter(spark_session, config=config)
+        fitter1 = DistributionFitter(spark_session, random_seed=42)
+        fitter2 = DistributionFitter(spark_session, random_seed=42)
 
         # Use max_distributions to speed up test
         results1 = fitter1.fit(small_dataset, column="value", max_distributions=5)
@@ -313,7 +262,6 @@ class TestDistributionFitter:
         assert best1.distribution == best2.distribution
         # SSE might differ slightly due to sampling, but should be close
         assert np.isclose(best1.sse, best2.sse, rtol=0.1)
-
 
 class TestDistributionFitterPlotting:
     """Tests for plotting functionality."""
@@ -342,18 +290,20 @@ class TestDistributionFitterPlotting:
         assert fig is not None
         assert ax is not None
 
-    def test_plot_with_explicit_data(self, spark_session, small_dataset):
-        """Test plotting with explicitly provided data."""
+    def test_plot_with_custom_params(self, spark_session, small_dataset):
+        """Test plotting with custom parameters."""
         fitter = DistributionFitter(spark_session)
         results = fitter.fit(small_dataset, column="value", max_distributions=5)
         best = results.best(n=1)[0]
 
-        # Should work with explicit data
-        fig, ax = fitter.plot(best, df=small_dataset, column="value", title="Test Plot")
+        # Should work with custom figsize, dpi, etc.
+        fig, ax = fitter.plot(
+            best, small_dataset, "value",
+            figsize=(16, 10), dpi=150, title="Custom Plot"
+        )
 
         assert fig is not None
         assert ax is not None
-
 
 class TestEdgeCases:
     """Tests for edge cases and error handling."""
@@ -402,30 +352,21 @@ class TestEdgeCases:
 
     def test_apply_sampling_at_threshold(self, spark_session, small_dataset):
         """Test that data at threshold doesn't sample."""
-        config = FitConfig(enable_sampling=True, sample_threshold=10_000)
-        fitter = DistributionFitter(spark_session, config=config)
-
-        df_result = fitter._apply_sampling(small_dataset, config, 10_000)
+        fitter = DistributionFitter(spark_session)
+        df_result = fitter._apply_sampling(
+            small_dataset, row_count=10_000, enable_sampling=True,
+            sample_fraction=None, max_sample_size=1_000_000, sample_threshold=10_000
+        )
 
         # At threshold should return original data (uses <=)
         assert df_result.count() == small_dataset.count()
 
-    def test_calculate_partitions_returns_reasonable_value(self, spark_session):
-        """Test partition calculation returns reasonable values."""
-        fitter = DistributionFitter(spark_session)
-
-        # Various distribution counts
-        for num_dists in [1, 10, 50, 100, 200]:
-            partitions = fitter._calculate_partitions(num_dists)
-            assert partitions >= 1
-            assert partitions <= num_dists
-
     def test_fit_max_distributions_zero(self, spark_session, small_dataset):
-        """Test fitting with max_distributions=0 fits nothing."""
+        """Test fitting with max_distributions=0 raises error."""
         fitter = DistributionFitter(spark_session)
 
         with pytest.raises(ValueError):
-            results = fitter.fit(small_dataset, column="value", max_distributions=0)
+            fitter.fit(small_dataset, column="value", max_distributions=0)
 
     def test_fit_with_different_columns(self, spark_session):
         """Test fitting on different column names."""
@@ -438,6 +379,19 @@ class TestEdgeCases:
 
         assert results.count() > 0
 
+    def test_fit_invalid_bins(self, spark_session, small_dataset):
+        """Test that invalid bins raises error."""
+        fitter = DistributionFitter(spark_session)
+
+        with pytest.raises(ValueError, match="bins must be positive"):
+            fitter.fit(small_dataset, column="value", bins=0)
+
+    def test_fit_invalid_sample_fraction(self, spark_session, small_dataset):
+        """Test that invalid sample_fraction raises error."""
+        fitter = DistributionFitter(spark_session)
+
+        with pytest.raises(ValueError, match="sample_fraction must be in"):
+            fitter.fit(small_dataset, column="value", sample_fraction=1.5)
 
 class TestCoreNegativePaths:
     """Tests for negative/error paths in core module."""
@@ -486,63 +440,3 @@ class TestCoreNegativePaths:
         # Plot with different dataset should work
         fig, ax = fitter.plot(best, df=df2, column="value")
         assert fig is not None
-
-
-class TestDistributionFitterFromConfig:
-    """Tests for DistributionFitter.from_config class method."""
-
-    def test_from_config_loads_correctly(self, spark_session, tmp_path):
-        """Test that from_config creates a properly configured fitter."""
-        # Create a simple config file without extra_config (which can't be modified at runtime)
-        config_content = """
-        spark {
-            app_name = "test-app"
-            arrow_enabled = true
-        }
-        fit {
-            bins = 100
-            use_rice_rule = false
-            enable_sampling = true
-        }
-        plot {
-            dpi = 600
-            figsize = [12, 8]
-        }
-        """
-        config_path = tmp_path / "test_config.conf"
-        config_path.write_text(config_content)
-
-        fitter = DistributionFitter.from_config(str(config_path), spark=spark_session)
-
-        # Verify fit config was loaded
-        assert fitter.config.bins == 100
-        assert fitter.config.use_rice_rule is False
-        assert fitter.config.enable_sampling is True
-
-        # Verify plot config is accessible
-        assert hasattr(fitter, "plot_config")
-        assert fitter.plot_config.dpi == 600
-        assert fitter.plot_config.figsize == (12, 8)
-
-    def test_from_config_can_fit(self, spark_session, small_dataset, tmp_path):
-        """Test that fitter from config can perform fitting."""
-        config_content = """
-        spark {
-            app_name = "test-fit"
-        }
-        fit {
-            bins = 50
-        }
-        plot {
-            dpi = 100
-        }
-        """
-        config_path = tmp_path / "fit_config.conf"
-        config_path.write_text(config_content)
-
-        fitter = DistributionFitter.from_config(str(config_path), spark=spark_session)
-        results = fitter.fit(small_dataset, column="value", max_distributions=3)
-
-        assert results.count() > 0
-        best = results.best(n=1)[0]
-        assert best.distribution is not None

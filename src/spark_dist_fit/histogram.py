@@ -7,10 +7,8 @@ import pyspark.sql.functions as F
 from pyspark.ml.feature import Bucketizer
 from pyspark.sql import DataFrame
 
-from spark_dist_fit.utils import SparkSessionWrapper
 
-
-class HistogramComputer(SparkSessionWrapper):
+class HistogramComputer:
     """Computes histograms efficiently using Spark aggregations.
 
     This implementation avoids collecting raw data to the driver by using

@@ -6,33 +6,8 @@ Core
 
 .. automodule:: spark_dist_fit.core
    :members:
-   :exclude-members: plot_config
 
-Configuration
--------------
-
-.. autoclass:: spark_dist_fit.config.FitConfig
-   :show-inheritance:
-   :no-index:
-
-.. autoclass:: spark_dist_fit.config.PlotConfig
-   :show-inheritance:
-   :no-index:
-
-.. autoclass:: spark_dist_fit.config.SparkConfig
-   :members: to_spark_config
-   :show-inheritance:
-   :no-index:
-
-.. autoclass:: spark_dist_fit.config.AppConfig
-   :show-inheritance:
-   :no-index:
-
-.. autoclass:: spark_dist_fit.config.ConfigLoadMixin
-   :members:
-   :show-inheritance:
-
-.. autodata:: spark_dist_fit.config.DEFAULT_EXCLUDED_DISTRIBUTIONS
+.. autodata:: spark_dist_fit.core.DEFAULT_EXCLUDED_DISTRIBUTIONS
 
 Results
 -------
@@ -62,4 +37,10 @@ Plotting
 --------
 
 .. automodule:: spark_dist_fit.plotting
+   :members:
+
+Utilities
+---------
+
+.. automodule:: spark_dist_fit.utils
    :members:

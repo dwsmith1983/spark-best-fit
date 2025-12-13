@@ -9,7 +9,7 @@ import time
 import numpy as np
 import pytest
 
-from spark_dist_fit import DistributionFitter, FitConfig
+from spark_dist_fit import DistributionFitter
 from spark_dist_fit.fitting import (
     FITTING_SAMPLE_SIZE,
     create_sample_data,
@@ -112,12 +112,11 @@ class TestEndToEndPerformance:
         data = [(float(x),) for x in np.random.normal(loc=100, scale=15, size=10_000)]
         df = spark_session.createDataFrame(data, ["value"])
 
-        config = FitConfig(bins=50, use_rice_rule=False)
-        fitter = DistributionFitter(spark_session, config=config)
+        fitter = DistributionFitter(spark_session)
 
         start = time.perf_counter()
         # Fit only 5 distributions for speed
-        results = fitter.fit(df, "value", max_distributions=5)
+        results = fitter.fit(df, "value", bins=50, use_rice_rule=False, max_distributions=5)
         elapsed = time.perf_counter() - start
 
         # Full pipeline with 5 distributions should complete in under 30 seconds
@@ -131,12 +130,11 @@ class TestEndToEndPerformance:
         data = [(float(x),) for x in np.random.gamma(shape=2, scale=5, size=50_000)]
         df = spark_session.createDataFrame(data, ["value"])
 
-        config = FitConfig(bins=75, use_rice_rule=False)
-        fitter = DistributionFitter(spark_session, config=config)
+        fitter = DistributionFitter(spark_session)
 
         start = time.perf_counter()
         # Fit only 3 distributions for speed
-        results = fitter.fit(df, "value", max_distributions=3)
+        results = fitter.fit(df, "value", bins=75, use_rice_rule=False, max_distributions=3)
         elapsed = time.perf_counter() - start
 
         # Medium dataset with 3 distributions should complete in under 45 seconds

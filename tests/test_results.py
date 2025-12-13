@@ -6,7 +6,6 @@ import scipy.stats as st
 
 from spark_dist_fit.results import DistributionFitResult, FitResults
 
-
 class TestDistributionFitResult:
     """Tests for DistributionFitResult dataclass."""
 
@@ -130,7 +129,6 @@ class TestDistributionFitResult:
         assert result_dict["aic"] is None
         assert result_dict["bic"] is None
 
-
 class TestFitResults:
     """Tests for FitResults class."""
 
@@ -174,31 +172,14 @@ class TestFitResults:
 
         assert results.df == sample_results_df
 
-    def test_best_by_sse(self, sample_results_df):
-        """Test getting best distributions by SSE."""
+    @pytest.mark.parametrize("metric", ["sse", "aic", "bic"])
+    def test_best_by_metric(self, sample_results_df, metric):
+        """Test getting best distributions by various metrics."""
         results = FitResults(sample_results_df)
-        best = results.best(n=1, metric="sse")
+        best = results.best(n=1, metric=metric)
 
         assert len(best) == 1
-        assert best[0].distribution == "gamma"  # Lowest SSE (0.003)
-        assert best[0].sse == 0.003
-
-    def test_best_by_aic(self, sample_results_df):
-        """Test getting best distributions by AIC."""
-        results = FitResults(sample_results_df)
-        best = results.best(n=1, metric="aic")
-
-        assert len(best) == 1
-        assert best[0].distribution == "gamma"  # Lowest AIC (1400)
-
-    def test_best_by_bic(self, sample_results_df):
-        """Test getting best distributions by BIC."""
-        results = FitResults(sample_results_df)
-        best = results.best(n=1, metric="bic")
-
-        assert len(best) == 1
-        # gamma has BIC=1430, which is lowest
-        assert best[0].distribution == "gamma"  # Lowest BIC (1430)
+        assert best[0].distribution == "gamma"  # gamma has lowest SSE, AIC, and BIC
 
     def test_best_top_n(self, sample_results_df):
         """Test getting top N distributions."""
@@ -222,25 +203,18 @@ class TestFitResults:
         with pytest.raises(ValueError):
             results.best(n=1, metric="invalid_metric")
 
-    def test_filter_by_sse(self, sample_results_df):
-        """Test filtering by SSE threshold."""
+    @pytest.mark.parametrize("threshold_kwarg,threshold_val,expected_count", [
+        ({"sse_threshold": 0.006}, "sse", 3),
+        ({"aic_threshold": 1500}, "aic", 2),
+    ])
+    def test_filter_by_threshold(self, sample_results_df, threshold_kwarg, threshold_val, expected_count):
+        """Test filtering by various threshold types."""
         results = FitResults(sample_results_df)
-        filtered = results.filter(sse_threshold=0.006)
+        filtered = results.filter(**threshold_kwarg)
 
-        # Should have 3 distributions with SSE < 0.006
-        assert filtered.count() == 3
-
-        # Verify filtering worked
+        assert filtered.count() == expected_count
         df_pandas = filtered.to_pandas()
-        assert all(df_pandas["sse"] < 0.006)
-
-    def test_filter_by_aic(self, sample_results_df):
-        """Test filtering by AIC threshold."""
-        results = FitResults(sample_results_df)
-        filtered = results.filter(aic_threshold=1500)
-
-        # Should have 2 distributions with AIC < 1500
-        assert filtered.count() == 2
+        assert all(df_pandas[threshold_val] < list(threshold_kwarg.values())[0])
 
     def test_filter_multiple_criteria(self, sample_results_df):
         """Test filtering by multiple criteria."""
@@ -336,16 +310,6 @@ class TestFitResults:
         filtered = results.filter()
 
         assert filtered.count() == results.count()
-
-    def test_filter_by_bic(self, sample_results_df):
-        """Test filtering by BIC threshold."""
-        results = FitResults(sample_results_df)
-        filtered = results.filter(bic_threshold=1500)
-
-        # Should filter to distributions with BIC < 1500
-        df_pandas = filtered.to_pandas()
-        assert all(df_pandas["bic"] < 1500)
-
 
 class TestDistributionFitResultEdgeCases:
     """Edge case tests for DistributionFitResult."""

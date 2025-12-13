@@ -28,8 +28,6 @@ optimized Pandas UDFs.
 - Handles datasets from 100K to 100M+ rows efficiently
 - Returns multiple goodness-of-fit metrics (SSE, AIC, BIC)
 - Beautiful matplotlib visualizations
-- HOCON/YAML/JSON configuration support
-- Type-safe configuration with dataclasses
 
 ## Requirements
 
@@ -71,8 +69,8 @@ spark = SparkSession.builder.appName("MyApp").getOrCreate()
 data = np.random.normal(loc=50, scale=10, size=100_000)
 df = spark.createDataFrame([(float(x),) for x in data], ["value"])
 
-# Fit distributions (uses existing Spark session, applies optimized settings)
-fitter = DistributionFitter()
+# Fit distributions
+fitter = DistributionFitter(spark)
 results = fitter.fit(df, column="value")
 
 # Get best distribution
@@ -85,101 +83,21 @@ fitter.plot(best, df, "value", title="Best Fit Distribution")
 
 ## Advanced Usage
 
-### Custom Configuration
+### Custom Fitting Parameters
 
 ```python
-from spark_dist_fit import DistributionFitter, FitConfig
+from spark_dist_fit import DistributionFitter
 
-# Configure fitting parameters
-config = FitConfig(
+fitter = DistributionFitter(spark, random_seed=123)
+results = fitter.fit(
+    df,
+    column="value",
     bins=100,                    # Number of histogram bins
     support_at_zero=True,        # Only fit non-negative distributions
-    enable_sampling=True,         # Enable adaptive sampling
+    enable_sampling=True,        # Enable adaptive sampling
     sample_fraction=0.3,         # Sample 30% of data
-    excluded_distributions=[     # Exclude specific distributions
-        "levy_stable",
-        "kappa4",
-    ]
+    max_distributions=50,        # Limit distributions to fit
 )
-
-fitter = DistributionFitter(config=config)
-results = fitter.fit(df, column="value")
-```
-
-### Load Configuration from HOCON File
-
-The recommended approach for production is to use HOCON configuration files. See `config/example.conf` for a full example.
-
-**config/my_config.conf:**
-```hocon
-fit {
-    bins = 100
-    use_rice_rule = false
-    support_at_zero = true
-
-    excluded_distributions = [
-        "levy_stable"
-        "kappa4"
-        "ncx2"
-    ]
-
-    enable_sampling = true
-    sample_fraction = 0.3
-    max_sample_size = 1000000
-
-    random_seed = 42
-}
-
-plot {
-    figsize = [16, 10]
-    dpi = 300
-    histogram_alpha = 0.6
-    pdf_linewidth = 3
-}
-```
-
-**Load and use:**
-```python
-from spark_dist_fit import AppConfig, DistributionFitter
-
-# Load configs from HOCON file (nested structure requires AppConfig)
-config = AppConfig.from_file("config/my_config.conf")
-
-# Use in fitter
-fitter = DistributionFitter(config=config.fit)
-results = fitter.fit(df, column="value")
-
-# Plot with config
-best = results.best(n=1)[0]
-fitter.plot(best, df, "value", config=config.plot)
-```
-
-HOCON supports includes, substitutions, and environment variables:
-```hocon
-# Include shared config
-include "base.conf"
-
-fit {
-    # Reference environment variable
-    random_seed = ${?RANDOM_SEED}
-
-    # Override from base
-    bins = 200
-}
-```
-
-### One-Line Config Loading
-
-For convenience, create a fully-configured fitter directly from a config file:
-
-```python
-# Load fitter with all configs in one line
-fitter = DistributionFitter.from_config("config/my_config.conf")
-
-# Fit and plot using loaded configs
-results = fitter.fit(df, column="value")
-best = results.best(n=1)[0]
-fitter.plot(best, df, "value", config=fitter.plot_config)  # plot_config auto-loaded
 ```
 
 ### Working with Results
@@ -206,24 +124,34 @@ cdf_values = best.cdf(x_array)     # Evaluate CDF
 ### Plotting
 
 ```python
-from spark_dist_fit import PlotConfig
+# Basic plot
+fitter.plot(best, df, "value", title="Distribution Fit")
 
-plot_config = PlotConfig(
-    figsize=(16, 10),
-    dpi=300,
-    histogram_alpha=0.6,
-    pdf_linewidth=3
-)
-
+# Customized plot
 fitter.plot(
     best,
     df,
     "value",
-    config=plot_config,
+    figsize=(16, 10),
+    dpi=300,
+    histogram_alpha=0.6,
+    pdf_linewidth=3,
     title="Distribution Fit",
     xlabel="Value",
-    ylabel="Density"
+    ylabel="Density",
 )
+```
+
+### Customizing Excluded Distributions
+
+By default, 17 slow scipy distributions are excluded to prevent fitting from hanging. To include a slow distribution:
+
+```python
+from spark_dist_fit import DistributionFitter, DEFAULT_EXCLUDED_DISTRIBUTIONS
+
+# Remove a specific distribution from exclusions
+exclusions = tuple(d for d in DEFAULT_EXCLUDED_DISTRIBUTIONS if d != "studentized_range")
+fitter = DistributionFitter(spark, excluded_distributions=exclusions)
 ```
 
 ## Architecture
@@ -236,49 +164,50 @@ fitter.plot(
 4. **Broadcast Variables**: Efficient data sharing
 5. **FitResults**: Convenient result handling
 
-## Configuration
+## API Reference
 
-### FitConfig Options
+### DistributionFitter
+
+```python
+DistributionFitter(
+    spark=None,                    # SparkSession (uses active session if None)
+    excluded_distributions=None,   # Distributions to exclude (defaults to slow ones)
+    random_seed=42,                # Random seed for reproducibility
+)
+```
+
+### fit() Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
+| `df` | DataFrame | required | Spark DataFrame with data |
+| `column` | str | required | Column name to fit |
 | `bins` | int/array | 50 | Number of histogram bins |
 | `use_rice_rule` | bool | True | Auto-calculate bins using Rice rule |
 | `support_at_zero` | bool | False | Only fit non-negative distributions |
-| `excluded_distributions` | list | [...] | Distributions to exclude (see below) |
+| `max_distributions` | int | None | Limit number of distributions to fit |
 | `enable_sampling` | bool | True | Enable sampling for large datasets |
 | `sample_fraction` | float | None | Fraction to sample (None = auto) |
 | `max_sample_size` | int | 1,000,000 | Max rows to sample |
-| `max_sample_fraction` | float | 0.35 | Max auto-determined sample fraction |
 | `sample_threshold` | int | 10,000,000 | Row count above which to sample |
 | `num_partitions` | int | None | Spark partitions (None = auto) |
-| `random_seed` | int | 42 | Random seed |
 
-#### Customizing Excluded Distributions
-
-By default, 17 slow scipy distributions are excluded to prevent fitting from hanging. To include a slow distribution:
-
-```python
-from spark_dist_fit import FitConfig, DEFAULT_EXCLUDED_DISTRIBUTIONS
-
-# Remove a specific distribution from exclusions
-exclusions = [d for d in DEFAULT_EXCLUDED_DISTRIBUTIONS if d != "studentized_range"]
-config = FitConfig(excluded_distributions=tuple(exclusions))
-```
-
-### PlotConfig Options
+### plot() Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
+| `result` | DistributionFitResult | required | Fitted distribution to plot |
+| `df` | DataFrame | required | Spark DataFrame with data |
+| `column` | str | required | Column name |
+| `title` | str | "" | Plot title |
+| `xlabel` | str | "Value" | X-axis label |
+| `ylabel` | str | "Density" | Y-axis label |
 | `figsize` | tuple | (12, 8) | Figure size (width, height) |
-| `dpi` | int | 600 | Dots per inch |
+| `dpi` | int | 100 | Dots per inch |
 | `show_histogram` | bool | True | Show data histogram |
 | `histogram_alpha` | float | 0.5 | Histogram transparency |
 | `pdf_linewidth` | int | 2 | PDF line width |
-| `title_fontsize` | int | 14 | Title font size |
-| `label_fontsize` | int | 12 | Axis label font size |
-| `legend_fontsize` | int | 10 | Legend font size |
-| `grid_alpha` | float | 0.3 | Grid line transparency |
+| `save_path` | str | None | Path to save figure |
 | `save_format` | str | "png" | Save format (png/pdf/svg) |
 
 ## Development

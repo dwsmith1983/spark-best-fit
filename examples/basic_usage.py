@@ -3,9 +3,9 @@
 import numpy as np
 from pyspark.sql import SparkSession
 
-from spark_dist_fit import DistributionFitter, FitConfig, PlotConfig
+from spark_dist_fit import DistributionFitter
 
-# Create Spark session
+# Create Spark session (user's responsibility)
 spark = SparkSession.builder.appName("DistributionFitting").config("spark.sql.shuffle.partitions", "10").getOrCreate()
 
 # Generate sample data from a known distribution (normal distribution)
@@ -47,24 +47,24 @@ for i, result in enumerate(top_5, 1):
     print(f"{i}. {result.distribution:20s} SSE={result.sse:.6f}")
 
 # ============================================================================
-# Example 3: Custom configuration
+# Example 3: Custom parameters (non-negative distributions only)
 # ============================================================================
-print("\n3. Custom configuration (non-negative distributions only)")
+print("\n3. Custom parameters (non-negative distributions only)")
 print("-" * 80)
 
 # Generate non-negative data (exponential distribution)
 data_pos = np.random.exponential(scale=5, size=100_000)
 df_pos = spark.createDataFrame([(float(x),) for x in data_pos], ["value"])
 
-config = FitConfig(
+fitter_custom = DistributionFitter(spark)
+results_custom = fitter_custom.fit(
+    df_pos,
+    column="value",
     bins=100,  # More bins for better resolution
     support_at_zero=True,  # Only non-negative distributions
     enable_sampling=True,
     sample_fraction=0.3,
 )
-
-fitter_custom = DistributionFitter(spark, config=config)
-results_custom = fitter_custom.fit(df_pos, column="value")
 
 best_custom = results_custom.best(n=1)[0]
 print(f"\nBest non-negative distribution: {best_custom.distribution}")
@@ -76,13 +76,12 @@ print(f"SSE: {best_custom.sse:.6f}")
 print("\n4. Plotting best fit")
 print("-" * 80)
 
-plot_config = PlotConfig(figsize=(14, 8), dpi=100)
-
 fitter.plot(
     best,
     df,
     "value",
-    config=plot_config,
+    figsize=(14, 8),
+    dpi=100,
     title="Best Fit Distribution (Normal Data)",
     xlabel="Value",
     ylabel="Density",
@@ -110,38 +109,14 @@ for xi, pdf in zip(x, pdf_values):
     print(f"  f({xi}) = {pdf:.6f}")
 
 # ============================================================================
-# Example 6: Loading configuration from file (nested HOCON)
+# Example 6: Using active session
 # ============================================================================
-print("\n6. Loading configuration from HOCON file")
+print("\n6. Using active SparkSession")
 print("-" * 80)
 
-from spark_dist_fit import AppConfig
-
-try:
-    # For nested configs (fit{}, plot{}, spark{}), use AppConfig
-    app_config = AppConfig.from_file("../config/example.conf")
-    print("Configuration loaded successfully!")
-    print(f"  Fit bins: {app_config.fit.bins}")
-    print(f"  Sampling enabled: {app_config.fit.enable_sampling}")
-    print(f"  Plot DPI: {app_config.plot.dpi}")
-    print(f"  Spark app name: {app_config.spark.app_name}")
-except FileNotFoundError:
-    print("Config file not found (run from examples/ directory)")
-
-# ============================================================================
-# Example 7: Using DistributionFitter.from_config() convenience method
-# ============================================================================
-print("\n7. Using DistributionFitter.from_config()")
-print("-" * 80)
-
-try:
-    # One-liner to create fitter from config file
-    fitter_from_config = DistributionFitter.from_config("../config/example.conf")
-    print("Fitter created from config!")
-    print(f"  Fit config bins: {fitter_from_config.config.bins}")
-    print(f"  Plot config available: {fitter_from_config.plot_config is not None}")
-except FileNotFoundError:
-    print("Config file not found (run from examples/ directory)")
+# DistributionFitter can use the active session automatically
+fitter_active = DistributionFitter()  # No spark parameter needed
+print(f"Using session: {fitter_active.spark.sparkContext.appName}")
 
 print("\n" + "=" * 80)
 print("Examples completed!")

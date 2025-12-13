@@ -5,15 +5,15 @@ import pytest
 
 from spark_dist_fit.histogram import HistogramComputer
 
-
 class TestHistogramComputer:
     """Tests for HistogramComputer class."""
 
-    def test_initialization(self, spark_session):
+    def test_initialization(self):
         """Test histogram computer initialization."""
         computer = HistogramComputer()
 
-        assert computer.spark == spark_session
+        # HistogramComputer is a simple class with no required initialization
+        assert computer is not None
 
     def test_compute_histogram_basic(self, spark_session, small_dataset):
         """Test basic histogram computation."""
@@ -139,23 +139,6 @@ class TestHistogramComputer:
             if value is not None:
                 assert isinstance(value, float)
 
-    def test_histogram_normalization(self, spark_session, small_dataset):
-        """Test that histogram is properly normalized to density."""
-        computer = HistogramComputer()
-        y_hist, x_hist = computer.compute_histogram(small_dataset, "value", bins=50)
-
-        # Calculate bin widths
-        bin_edges = np.linspace(
-            x_hist.min() - (x_hist[1] - x_hist[0]) / 2,
-            x_hist.max() + (x_hist[1] - x_hist[0]) / 2,
-            51,
-        )
-        bin_widths = np.diff(bin_edges)
-
-        # Total area under histogram should be ~1
-        total_area = np.sum(y_hist * bin_widths)
-        assert np.isclose(total_area, 1.0, atol=0.01)
-
     def test_histogram_no_data_loss(self, spark_session, small_dataset):
         """Test that histogram captures all data (no bins with zero when they shouldn't be)."""
         computer = HistogramComputer()
@@ -200,7 +183,6 @@ class TestHistogramComputer:
         bin_width = x_hist[1] - x_hist[0]
         total_area = np.sum(y_hist * bin_width)
         assert np.isclose(total_area, 1.0, atol=0.01)
-
 
 class TestHistogramErrorHandling:
     """Error handling tests for HistogramComputer."""

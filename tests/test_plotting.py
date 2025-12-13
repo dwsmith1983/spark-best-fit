@@ -7,7 +7,6 @@ import pytest
 matplotlib.use("Agg")  # Non-interactive backend for tests
 import matplotlib.pyplot as plt
 
-from spark_dist_fit.config import PlotConfig
 from spark_dist_fit.plotting import plot_comparison, plot_distribution
 from spark_dist_fit.results import DistributionFitResult
 
@@ -58,20 +57,14 @@ def expon_result():
     )
 
 
-@pytest.fixture
-def plot_config():
-    """Create default plot config."""
-    return PlotConfig()
-
-
 class TestPlotDistribution:
     """Tests for plot_distribution function."""
 
-    def test_basic_plot(self, normal_result, sample_histogram, plot_config):
+    def test_basic_plot(self, normal_result, sample_histogram):
         """Test basic distribution plotting creates valid figure with expected elements."""
         y_hist, x_hist = sample_histogram
 
-        fig, ax = plot_distribution(normal_result, y_hist, x_hist, plot_config)
+        fig, ax = plot_distribution(normal_result, y_hist, x_hist)
 
         # Verify figure and axes are valid matplotlib objects
         assert fig is not None
@@ -92,16 +85,16 @@ class TestPlotDistribution:
 
         plt.close(fig)
 
-    def test_plot_with_title(self, normal_result, sample_histogram, plot_config):
+    def test_plot_with_title(self, normal_result, sample_histogram):
         """Test plotting with custom title."""
         y_hist, x_hist = sample_histogram
 
-        fig, ax = plot_distribution(normal_result, y_hist, x_hist, plot_config, title="Test Title")
+        fig, ax = plot_distribution(normal_result, y_hist, x_hist, title="Test Title")
 
         assert "Test Title" in ax.get_title()
         plt.close(fig)
 
-    def test_plot_with_custom_labels(self, normal_result, sample_histogram, plot_config):
+    def test_plot_with_custom_labels(self, normal_result, sample_histogram):
         """Test plotting with custom axis labels."""
         y_hist, x_hist = sample_histogram
 
@@ -109,7 +102,6 @@ class TestPlotDistribution:
             normal_result,
             y_hist,
             x_hist,
-            plot_config,
             xlabel="Custom X",
             ylabel="Custom Y",
         )
@@ -121,46 +113,46 @@ class TestPlotDistribution:
     def test_plot_without_histogram(self, normal_result, sample_histogram):
         """Test plotting without showing histogram."""
         y_hist, x_hist = sample_histogram
-        config = PlotConfig(show_histogram=False)
 
-        fig, ax = plot_distribution(normal_result, y_hist, x_hist, config)
+        fig, ax = plot_distribution(normal_result, y_hist, x_hist, show_histogram=False)
 
         # Should only have PDF line, no bars
         assert fig is not None
         plt.close(fig)
 
-    def test_plot_gamma_distribution(self, gamma_result, sample_histogram, plot_config):
+    def test_plot_gamma_distribution(self, gamma_result, sample_histogram):
         """Test plotting gamma distribution (has shape params)."""
         y_hist, x_hist = sample_histogram
 
-        fig, ax = plot_distribution(gamma_result, y_hist, x_hist, plot_config)
+        fig, ax = plot_distribution(gamma_result, y_hist, x_hist)
 
         assert fig is not None
         plt.close(fig)
 
-    def test_plot_without_aic_bic(self, sample_histogram, plot_config):
+    def test_plot_without_aic_bic(self, sample_histogram):
         """Test plotting result without AIC/BIC."""
         result = DistributionFitResult(distribution="norm", parameters=[50.0, 10.0], sse=0.005, aic=None, bic=None)
         y_hist, x_hist = sample_histogram
 
-        fig, ax = plot_distribution(result, y_hist, x_hist, plot_config)
+        fig, ax = plot_distribution(result, y_hist, x_hist)
 
         # Should not show AIC/BIC in title
         assert "AIC" not in ax.get_title()
         plt.close(fig)
 
-    def test_plot_custom_config(self, normal_result, sample_histogram):
-        """Test plotting with custom config."""
-        config = PlotConfig(figsize=(16, 10), dpi=300, histogram_alpha=0.7, pdf_linewidth=3)
+    def test_plot_custom_parameters(self, normal_result, sample_histogram):
+        """Test plotting with custom parameters."""
         y_hist, x_hist = sample_histogram
 
-        fig, ax = plot_distribution(normal_result, y_hist, x_hist, config)
+        fig, ax = plot_distribution(
+            normal_result, y_hist, x_hist, figsize=(16, 10), dpi=300, histogram_alpha=0.7, pdf_linewidth=3
+        )
 
         assert fig.get_figwidth() == 16
         assert fig.get_figheight() == 10
         plt.close(fig)
 
-    def test_plot_handles_ppf_failure(self, sample_histogram, plot_config):
+    def test_plot_handles_ppf_failure(self, sample_histogram):
         """Test that plotting handles ppf failure gracefully."""
         # Create result with parameters that might cause ppf issues
         result = DistributionFitResult(
@@ -171,17 +163,17 @@ class TestPlotDistribution:
         y_hist, x_hist = sample_histogram
 
         # Should not raise even if ppf has issues
-        fig, ax = plot_distribution(result, y_hist, x_hist, plot_config)
+        fig, ax = plot_distribution(result, y_hist, x_hist)
 
         assert fig is not None
         plt.close(fig)
 
-    def test_plot_single_bin_histogram(self, normal_result, plot_config):
+    def test_plot_single_bin_histogram(self, normal_result):
         """Test plotting with single bin histogram (edge case)."""
         y_hist = np.array([1.0])
         x_hist = np.array([50.0])
 
-        fig, ax = plot_distribution(normal_result, y_hist, x_hist, plot_config)
+        fig, ax = plot_distribution(normal_result, y_hist, x_hist)
 
         assert fig is not None
         plt.close(fig)
@@ -190,36 +182,34 @@ class TestPlotDistribution:
 class TestPlotComparison:
     """Tests for plot_comparison function."""
 
-    def test_comparison_multiple_distributions(
-        self, normal_result, gamma_result, expon_result, sample_histogram, plot_config
-    ):
+    def test_comparison_multiple_distributions(self, normal_result, gamma_result, expon_result, sample_histogram):
         """Test comparing multiple distributions."""
         y_hist, x_hist = sample_histogram
         results = [normal_result, gamma_result, expon_result]
 
-        fig, ax = plot_comparison(results, y_hist, x_hist, plot_config)
+        fig, ax = plot_comparison(results, y_hist, x_hist)
 
         assert fig is not None
         assert ax is not None
         plt.close(fig)
 
-    def test_comparison_single_distribution(self, normal_result, sample_histogram, plot_config):
+    def test_comparison_single_distribution(self, normal_result, sample_histogram):
         """Test comparison with single distribution."""
         y_hist, x_hist = sample_histogram
 
-        fig, ax = plot_comparison([normal_result], y_hist, x_hist, plot_config)
+        fig, ax = plot_comparison([normal_result], y_hist, x_hist)
 
         assert fig is not None
         plt.close(fig)
 
-    def test_comparison_empty_results_raises(self, sample_histogram, plot_config):
+    def test_comparison_empty_results_raises(self, sample_histogram):
         """Test that empty results raises ValueError."""
         y_hist, x_hist = sample_histogram
 
         with pytest.raises(ValueError, match="Must provide at least one result"):
-            plot_comparison([], y_hist, x_hist, plot_config)
+            plot_comparison([], y_hist, x_hist)
 
-    def test_comparison_with_title(self, normal_result, gamma_result, sample_histogram, plot_config):
+    def test_comparison_with_title(self, normal_result, gamma_result, sample_histogram):
         """Test comparison with custom title."""
         y_hist, x_hist = sample_histogram
 
@@ -227,7 +217,6 @@ class TestPlotComparison:
             [normal_result, gamma_result],
             y_hist,
             x_hist,
-            plot_config,
             title="Custom Comparison",
         )
 
@@ -237,19 +226,18 @@ class TestPlotComparison:
     def test_comparison_without_histogram(self, normal_result, gamma_result, sample_histogram):
         """Test comparison without showing histogram."""
         y_hist, x_hist = sample_histogram
-        config = PlotConfig(show_histogram=False)
 
-        fig, ax = plot_comparison([normal_result, gamma_result], y_hist, x_hist, config)
+        fig, ax = plot_comparison([normal_result, gamma_result], y_hist, x_hist, show_histogram=False)
 
         assert fig is not None
         plt.close(fig)
 
-    def test_comparison_legend_entries(self, normal_result, gamma_result, expon_result, sample_histogram, plot_config):
+    def test_comparison_legend_entries(self, normal_result, gamma_result, expon_result, sample_histogram):
         """Test that legend has entries for all distributions."""
         y_hist, x_hist = sample_histogram
         results = [normal_result, gamma_result, expon_result]
 
-        fig, ax = plot_comparison(results, y_hist, x_hist, plot_config)
+        fig, ax = plot_comparison(results, y_hist, x_hist)
 
         # Check legend has expected entries
         legend = ax.get_legend()
@@ -260,7 +248,7 @@ class TestPlotComparison:
         assert any("expon" in text for text in legend_texts)
         plt.close(fig)
 
-    def test_comparison_handles_ppf_failure(self, sample_histogram, plot_config):
+    def test_comparison_handles_ppf_failure(self, sample_histogram):
         """Test comparison handles ppf failure gracefully."""
         # Create results with various distributions
         results = [
@@ -269,7 +257,7 @@ class TestPlotComparison:
         ]
         y_hist, x_hist = sample_histogram
 
-        fig, ax = plot_comparison(results, y_hist, x_hist, plot_config)
+        fig, ax = plot_comparison(results, y_hist, x_hist)
 
         assert fig is not None
         plt.close(fig)
@@ -278,17 +266,17 @@ class TestPlotComparison:
 class TestPlotSaving:
     """Tests for plot saving functionality."""
 
-    def test_save_plot(self, normal_result, sample_histogram, plot_config, tmp_path):
+    def test_save_plot(self, normal_result, sample_histogram, tmp_path):
         """Test saving plot to file."""
         y_hist, x_hist = sample_histogram
         save_path = str(tmp_path / "test_plot.png")
 
-        fig, ax = plot_distribution(normal_result, y_hist, x_hist, plot_config, save_path=save_path)
+        fig, ax = plot_distribution(normal_result, y_hist, x_hist, save_path=save_path)
 
         assert (tmp_path / "test_plot.png").exists()
         plt.close(fig)
 
-    def test_save_comparison_plot(self, normal_result, gamma_result, sample_histogram, plot_config, tmp_path):
+    def test_save_comparison_plot(self, normal_result, gamma_result, sample_histogram, tmp_path):
         """Test saving comparison plot to file."""
         y_hist, x_hist = sample_histogram
         save_path = str(tmp_path / "comparison.png")
@@ -297,7 +285,6 @@ class TestPlotSaving:
             [normal_result, gamma_result],
             y_hist,
             x_hist,
-            plot_config,
             save_path=save_path,
         )
 
@@ -308,45 +295,45 @@ class TestPlotSaving:
 class TestPlotEdgeCases:
     """Tests for edge cases in plotting."""
 
-    def test_plot_with_inf_in_histogram(self, normal_result, plot_config):
+    def test_plot_with_inf_in_histogram(self, normal_result):
         """Test plotting handles inf values in histogram."""
         y_hist = np.array([0.1, 0.2, np.inf, 0.2, 0.1])
         x_hist = np.array([40, 45, 50, 55, 60])
 
         # Should handle gracefully (matplotlib will warn but not crash)
-        fig, ax = plot_distribution(normal_result, y_hist, x_hist, plot_config)
+        fig, ax = plot_distribution(normal_result, y_hist, x_hist)
 
         assert fig is not None
         plt.close(fig)
 
-    def test_plot_with_nan_in_histogram(self, normal_result, plot_config):
+    def test_plot_with_nan_in_histogram(self, normal_result):
         """Test plotting handles NaN values in histogram."""
         y_hist = np.array([0.1, 0.2, np.nan, 0.2, 0.1])
         x_hist = np.array([40, 45, 50, 55, 60])
 
         # Should handle gracefully
-        fig, ax = plot_distribution(normal_result, y_hist, x_hist, plot_config)
+        fig, ax = plot_distribution(normal_result, y_hist, x_hist)
 
         assert fig is not None
         plt.close(fig)
 
-    def test_plot_very_small_histogram(self, normal_result, plot_config):
+    def test_plot_very_small_histogram(self, normal_result):
         """Test plotting with very small histogram."""
         y_hist = np.array([0.5, 0.5])
         x_hist = np.array([49, 51])
 
-        fig, ax = plot_distribution(normal_result, y_hist, x_hist, plot_config)
+        fig, ax = plot_distribution(normal_result, y_hist, x_hist)
 
         assert fig is not None
         plt.close(fig)
 
-    def test_comparison_many_distributions(self, sample_histogram, plot_config):
+    def test_comparison_many_distributions(self, sample_histogram):
         """Test comparison with many distributions."""
         y_hist, x_hist = sample_histogram
 
         results = [DistributionFitResult("norm", [50.0 + i, 10.0], 0.01 + i * 0.001) for i in range(10)]
 
-        fig, ax = plot_comparison(results, y_hist, x_hist, plot_config)
+        fig, ax = plot_comparison(results, y_hist, x_hist)
 
         assert fig is not None
         plt.close(fig)
