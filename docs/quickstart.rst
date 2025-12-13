@@ -52,7 +52,7 @@ Basic Usage
    data = np.random.normal(loc=50, scale=10, size=10_000)
 
    # Create fitter
-   fitter = DistributionFitter()
+   fitter = DistributionFitter(spark)
    df = spark.createDataFrame([(float(x),) for x in data], ["value"])
 
    # Fit distributions
@@ -65,92 +65,86 @@ Basic Usage
    # Plot
    fitter.plot(best, df, "value", title="Best Fit Distribution")
 
-Custom Configuration
+Custom Fitting Parameters
+-------------------------
+
+Pass parameters directly to ``fit()`` to customize behavior:
+
+.. code-block:: python
+
+   from spark_dist_fit import DistributionFitter
+
+   fitter = DistributionFitter(spark, random_seed=123)
+   results = fitter.fit(
+       df,
+       column="value",
+       bins=100,                    # Number of histogram bins
+       support_at_zero=True,        # Only fit non-negative distributions
+       enable_sampling=True,        # Enable adaptive sampling
+       sample_fraction=0.3,         # Sample 30% of data
+       max_distributions=50,        # Limit distributions to fit
+   )
+
+Working with Results
 --------------------
 
 .. code-block:: python
 
-   from spark_dist_fit import DistributionFitter, FitConfig
+   # Get top 5 distributions by SSE
+   top_5 = results.best(n=5, metric="sse")
 
-   config = FitConfig(
-       bins=100,
-       support_at_zero=True,
-       excluded_distributions=["levy_stable", "kappa4"],
-   )
+   # Get best by AIC
+   best_aic = results.best(n=1, metric="aic")[0]
 
-   fitter = DistributionFitter(config=config)
-   results = fitter.fit(df, column="value")
+   # Filter good fits
+   good_fits = results.filter(sse_threshold=0.01)
 
-Configuration from HOCON File
------------------------------
+   # Convert to pandas for analysis
+   df_pandas = results.to_pandas()
 
-The recommended approach for production is to use HOCON configuration files.
-HOCON supports includes, substitutions, and environment variables.
+   # Use fitted distribution
+   samples = best.sample(size=10000)  # Generate samples
+   pdf_values = best.pdf(x_array)     # Evaluate PDF
+   cdf_values = best.cdf(x_array)     # Evaluate CDF
 
-Create a config file (e.g., ``config/app.conf``):
-
-.. code-block:: text
-
-   fit {
-       bins = 100
-       use_rice_rule = false
-       support_at_zero = true
-
-       excluded_distributions = [
-           "levy_stable"
-           "kappa4"
-           "ncx2"
-       ]
-
-       enable_sampling = true
-       sample_fraction = 0.3
-       max_sample_size = 1000000
-
-       random_seed = 42
-   }
-
-   plot {
-       figsize = [16, 10]
-       dpi = 300
-       histogram_alpha = 0.6
-       pdf_linewidth = 3
-   }
-
-Load and use the configuration:
+Custom Plotting
+---------------
 
 .. code-block:: python
 
-   from spark_dist_fit import AppConfig, DistributionFitter
+   # Basic plot
+   fitter.plot(best, df, "value", title="Distribution Fit")
 
-   # Load configs from HOCON file (nested structure requires AppConfig)
-   config = AppConfig.from_file("config/app.conf")
+   # Customized plot
+   fitter.plot(
+       best,
+       df,
+       "value",
+       figsize=(16, 10),
+       dpi=300,
+       histogram_alpha=0.6,
+       pdf_linewidth=3,
+       title="Distribution Fit",
+       xlabel="Value",
+       ylabel="Density",
+       save_path="output/distribution.png",
+   )
 
-   # Use in fitter
-   fitter = DistributionFitter(config=config.fit)
-   results = fitter.fit(df, column="value")
+Excluding Distributions
+-----------------------
 
-   # Plot with config
-   best = results.best(n=1)[0]
-   fitter.plot(best, df, "value", config=config.plot)
+By default, slow distributions are excluded. To customize:
 
-HOCON also supports environment variable substitution:
+.. code-block:: python
 
-.. code-block:: text
+   from spark_dist_fit import DistributionFitter, DEFAULT_EXCLUDED_DISTRIBUTIONS
 
-   fit {
-       random_seed = ${?RANDOM_SEED}  # Uses env var if set
-       bins = ${?HIST_BINS}
-   }
+   # View default exclusions
+   print(DEFAULT_EXCLUDED_DISTRIBUTIONS)
 
-And file includes for sharing common configuration:
+   # Include a specific distribution by removing it from exclusions
+   exclusions = tuple(d for d in DEFAULT_EXCLUDED_DISTRIBUTIONS if d != "wald")
+   fitter = DistributionFitter(spark, excluded_distributions=exclusions)
 
-.. code-block:: text
-
-   include "base.conf"
-
-   fit {
-       # Override specific values from base
-       bins = 200
-   }
-
-See ``config/example.conf`` in the repository for a complete example.
+   # Or exclude nothing (fit all distributions - may be slow)
+   fitter = DistributionFitter(spark, excluded_distributions=())

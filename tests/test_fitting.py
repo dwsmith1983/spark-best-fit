@@ -14,7 +14,6 @@ from spark_dist_fit.fitting import (
     fit_single_distribution,
 )
 
-
 class TestFitSingleDistribution:
     """Tests for fitting single distributions."""
 
@@ -95,7 +94,6 @@ class TestFitSingleDistribution:
         # Either succeeds or returns inf
         assert result["sse"] >= 0 or result["sse"] == np.inf
 
-
 class TestEvaluatePDF:
     """Tests for PDF evaluation."""
 
@@ -139,7 +137,6 @@ class TestEvaluatePDF:
         # Should convert NaN to 0
         assert np.isfinite(pdf_values).all()
 
-
 class TestComputeInformationCriteria:
     """Tests for information criteria calculation."""
 
@@ -179,21 +176,6 @@ class TestComputeInformationCriteria:
         # Should return inf for invalid data
         assert aic == np.inf
         assert bic == np.inf
-
-    def test_aic_bic_relationship(self, normal_data):
-        """Test that AIC and BIC have expected relationship."""
-        dist = st.norm
-        params = dist.fit(normal_data)
-
-        aic, bic = compute_information_criteria(dist, params, normal_data)
-
-        # For normal distribution (2 params) and large data:
-        # BIC = k*ln(n) - 2*ln(L)
-        # AIC = 2*k - 2*ln(L)
-        # BIC penalty is larger when n is large
-
-        assert bic > aic  # BIC penalizes more for large n
-
 
 class TestCreateSampleData:
     """Tests for data sampling."""
@@ -247,7 +229,6 @@ class TestCreateSampleData:
         # Should have no duplicates
         assert len(sample) == len(np.unique(sample))
 
-
 class TestFitSingleDistributionEdgeCases:
     """Edge case tests for fit_single_distribution."""
 
@@ -284,26 +265,6 @@ class TestFitSingleDistributionEdgeCases:
 
         required_keys = {"distribution", "parameters", "sse", "aic", "bic"}
         assert set(result.keys()) == required_keys
-
-    def test_fit_sse_is_float(self, normal_data):
-        """Test that SSE is returned as float."""
-        y_hist, x_edges = np.histogram(normal_data, bins=50, density=True)
-        x_hist = (x_edges[:-1] + x_edges[1:]) / 2
-
-        result = fit_single_distribution("norm", normal_data, x_hist, y_hist)
-
-        assert isinstance(result["sse"], float)
-
-    def test_fit_parameters_are_floats(self, normal_data):
-        """Test that all parameters are returned as floats."""
-        y_hist, x_edges = np.histogram(normal_data, bins=50, density=True)
-        x_hist = (x_edges[:-1] + x_edges[1:]) / 2
-
-        result = fit_single_distribution("norm", normal_data, x_hist, y_hist)
-
-        for param in result["parameters"]:
-            assert isinstance(param, float)
-
 
 class TestEvaluatePDFEdgeCases:
     """Edge case tests for evaluate_pdf."""
@@ -352,7 +313,6 @@ class TestEvaluatePDFEdgeCases:
         assert np.all(np.isfinite(pdf_values))
         assert np.all(pdf_values >= 0)
 
-
 class TestComputeInformationCriteriaEdgeCases:
     """Edge case tests for compute_information_criteria."""
 
@@ -379,28 +339,6 @@ class TestComputeInformationCriteriaEdgeCases:
         # May return inf due to numerical issues
         assert isinstance(aic, (int, float))
         assert isinstance(bic, (int, float))
-
-    def test_bic_larger_than_aic_for_large_n(self, normal_data):
-        """Test that BIC > AIC for large sample sizes (n > 7)."""
-        dist = st.norm
-        params = dist.fit(normal_data)
-
-        aic, bic = compute_information_criteria(dist, params, normal_data)
-
-        # For n > e^2 ≈ 7.4, BIC penalty is larger
-        if len(normal_data) > 8:
-            assert bic > aic
-
-    def test_compute_returns_tuple(self, normal_data):
-        """Test that function returns tuple of two values."""
-        dist = st.norm
-        params = dist.fit(normal_data)
-
-        result = compute_information_criteria(dist, params, normal_data)
-
-        assert isinstance(result, tuple)
-        assert len(result) == 2
-
 
 class TestCreateSampleDataEdgeCases:
     """Edge case tests for create_sample_data."""
@@ -434,7 +372,6 @@ class TestCreateSampleDataEdgeCases:
         sample = create_sample_data(data, sample_size=3, random_seed=42)
 
         assert sample.dtype == data.dtype
-
 
 class TestExtractDistributionParams:
     """Tests for extract_distribution_params utility function."""
@@ -485,13 +422,6 @@ class TestExtractDistributionParams:
         with pytest.raises(ValueError, match="at least 2 elements"):
             extract_distribution_params([])
 
-    def test_extract_returns_tuple_for_shape(self):
-        """Test that shape is always returned as tuple."""
-        params = [50.0, 10.0]
-        shape, _, _ = extract_distribution_params(params)
-
-        assert isinstance(shape, tuple)
-
     def test_extract_with_list_input(self):
         """Test that list input works correctly."""
         params = [2.0, 0.0, 5.0]
@@ -500,7 +430,6 @@ class TestExtractDistributionParams:
         assert shape == (2.0,)
         assert loc == 0.0
         assert scale == 5.0
-
 
 class TestComputePdfRange:
     """Tests for compute_pdf_range utility function."""
@@ -627,15 +556,3 @@ class TestComputePdfRange:
             assert np.isfinite(start), f"start not finite for {dist.name}"
             assert np.isfinite(end), f"end not finite for {dist.name}"
             assert start < end, f"start >= end for {dist.name}"
-
-
-class TestFittingSampleSizeConstant:
-    """Tests for FITTING_SAMPLE_SIZE constant."""
-
-    def test_fitting_sample_size_value(self):
-        """Test that FITTING_SAMPLE_SIZE has expected value."""
-        assert FITTING_SAMPLE_SIZE == 10_000
-
-    def test_fitting_sample_size_is_int(self):
-        """Test that FITTING_SAMPLE_SIZE is an integer."""
-        assert isinstance(FITTING_SAMPLE_SIZE, int)

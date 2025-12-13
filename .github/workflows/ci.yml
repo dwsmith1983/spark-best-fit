@@ -97,10 +97,6 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install dependencies
-        run: |
-          pip install -e ".[test]"
-      - name: Validate example scripts syntax
-        run: |
-          python -m py_compile examples/basic_usage.py
-          python -m py_compile examples/config_driven.py
-          python -m py_compile examples/large_dataset.py
+        run: pip install -e .
+      - name: Validate example imports
+        run: python scripts/validate_examples.py

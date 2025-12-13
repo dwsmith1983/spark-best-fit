@@ -31,7 +31,6 @@ dependencies = [
     "numpy>=1.24.0,<3.0.0",
     "scipy>=1.11.0,<2.0.0",
     "matplotlib>=3.7.0,<4.0.0",
-    "dataconf>=3.3.0,<4.0.0",
 ]
 
 [project.urls]
@@ -81,7 +80,7 @@ docs = [
 ]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/tests", "/config", "/examples", "/README.md"]
+include = ["/src", "/tests", "/examples", "/README.md"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/spark_dist_fit"]

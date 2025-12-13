@@ -29,7 +29,9 @@ Memory Comparison (100M row dataset):
 - spark-dist-fit approach: ~1MB on driver (1000x reduction)
 
 For very large datasets (>100M rows), enable sampling to reduce executor memory:
-    config = FitConfig(
+    fitter.fit(
+        df,
+        column="value",
         enable_sampling=True,
         sample_threshold=10_000_000,  # Sample when > 10M rows
         max_sample_size=1_000_000,    # Sample down to 1M rows
@@ -41,7 +43,7 @@ import time
 import numpy as np
 from pyspark.sql import SparkSession
 
-from spark_dist_fit import DistributionFitter, FitConfig
+from spark_dist_fit import DistributionFitter
 
 # Create Spark session with more resources
 spark = (
@@ -76,23 +78,22 @@ for size in data_sizes:
     df = df.cache()  # Cache for consistent timing
     df.count()  # Materialize
 
-    # Configure for large data
-    # Note: FitConfig uses DEFAULT_EXCLUDED_DISTRIBUTIONS which excludes
+    # Fit distributions
+    # Note: DistributionFitter uses DEFAULT_EXCLUDED_DISTRIBUTIONS which excludes
     # slow distributions like studentized_range, gausshyper, geninvgauss, etc.
-    config = FitConfig(
+    print(f"\nFitting distributions to {size:,} rows...")
+    start_time = time.time()
+
+    fitter = DistributionFitter(spark)
+    results = fitter.fit(
+        df,
+        column="value",
         bins=50,  # Fewer bins for speed
         enable_sampling=True,  # Enable sampling for large datasets
         sample_fraction=None,  # Auto-determine
         max_sample_size=1_000_000,  # Limit to 1M for fitting
         sample_threshold=1_000_000,  # Sample when exceeding 1M rows
     )
-
-    # Fit distributions
-    print(f"\nFitting distributions to {size:,} rows...")
-    start_time = time.time()
-
-    fitter = DistributionFitter(spark, config=config)
-    results = fitter.fit(df, column="value")
 
     elapsed = time.time() - start_time
 

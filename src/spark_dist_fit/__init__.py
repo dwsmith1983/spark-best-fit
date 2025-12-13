@@ -1,17 +1,18 @@
-"""spark-dist-fit: Modern Spark 4 distribution fitting library.
+"""spark-dist-fit: Modern Spark distribution fitting library.
 
 Efficiently fits ~100 scipy.stats distributions to data using Spark's
 parallel processing with optimized Pandas UDFs and broadcast variables.
 
 Example:
     >>> from pyspark.sql import SparkSession
-    >>> from spark_dist_fit import DistributionFitter, FitConfig
+    >>> from spark_dist_fit import DistributionFitter
     >>>
-    >>> spark = SparkSession.builder.getOrCreate()
+    >>> # Create your own SparkSession
+    >>> spark = SparkSession.builder.appName("my-app").getOrCreate()
     >>> df = spark.createDataFrame([(float(x),) for x in data], ['value'])
     >>>
     >>> # Fit distributions
-    >>> fitter = DistributionFitter()
+    >>> fitter = DistributionFitter(spark)
     >>> results = fitter.fit(df, column='value')
     >>>
     >>> # Get best distribution
@@ -23,39 +24,26 @@ Example:
 """
 
 from spark_dist_fit._version import __version__
-from spark_dist_fit.config import (
-    DEFAULT_EXCLUDED_DISTRIBUTIONS,
-    AppConfig,
-    ConfigLoadMixin,
-    FitConfig,
-    PlotConfig,
-    SparkConfig,
-)
-from spark_dist_fit.core import DistributionFitter
+from spark_dist_fit.core import DEFAULT_EXCLUDED_DISTRIBUTIONS, DistributionFitter
 from spark_dist_fit.distributions import DistributionRegistry
 from spark_dist_fit.results import DistributionFitResult, FitResults
-from spark_dist_fit.utils import SparkSessionWrapper
+from spark_dist_fit.utils import get_spark_session
 
 __author__ = "Dustin Smith"
 __email__ = "dustin.william.smith@gmail.com"
 
 __all__ = [
-    # Main classes
+    # Main class
     "DistributionFitter",
-    # Configuration
-    "AppConfig",
-    "ConfigLoadMixin",
+    # Constants
     "DEFAULT_EXCLUDED_DISTRIBUTIONS",
-    "FitConfig",
-    "PlotConfig",
-    "SparkConfig",
     # Results
     "FitResults",
     "DistributionFitResult",
     # Distribution management
     "DistributionRegistry",
     # Utilities
-    "SparkSessionWrapper",
+    "get_spark_session",
     # Version
     "__version__",
 ]
