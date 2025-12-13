@@ -102,5 +102,4 @@ jobs:
       - name: Validate example scripts syntax
         run: |
           python -m py_compile examples/basic_usage.py
-          python -m py_compile examples/config_driven.py
           python -m py_compile examples/large_dataset.py
